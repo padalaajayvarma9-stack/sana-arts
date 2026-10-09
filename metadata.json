@@ -1,0 +1,6 @@
+{
+  "name": "Sana Arts",
+  "description": "An immersive, world-class 3D digital art gallery experience for Sana Arts featuring interactive scroll animations and a futuristic silver-on-black aesthetic.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
