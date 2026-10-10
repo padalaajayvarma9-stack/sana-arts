@@ -14,14 +14,37 @@ import {
   User 
 } from 'lucide-react';
 
+const getTabFromPath = (path: string): string => {
+  const cleanPath = path.toLowerCase().replace(/\/+$/, '') || '/';
+  if (cleanPath === '/gallery') return 'Gallery';
+  if (cleanPath === '/chat') return 'Chat';
+  if (cleanPath === '/profile') return 'Profile';
+  return 'Home';
+};
+
 export default function App() {
   const [scrollFraction, setScrollFraction] = useState(0);
-  const [activeTab, setActiveTab] = useState<string>('Gallery');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return getTabFromPath(window.location.pathname);
+    }
+    return 'Home';
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
+
+  // Sync active tab with browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveTab(getTabFromPath(window.location.pathname));
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Initial loading delay with smooth fade-out for asset & WebGL initialization
   useEffect(() => {
@@ -57,6 +80,16 @@ export default function App() {
   const handleTabSwitch = (tab: string) => {
     setActiveTab(tab);
     
+    // Sync browser URL pathname with active view
+    let targetPath = '/';
+    if (tab === 'Gallery') targetPath = '/gallery';
+    else if (tab === 'Chat') targetPath = '/chat';
+    else if (tab === 'Profile') targetPath = '/profile';
+
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+
     // If not gallery, scroll to respective section of landing page
     if (tab !== 'Gallery') {
       window.scrollTo({ top: 0, behavior: 'instant' });
