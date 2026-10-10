@@ -4,6 +4,10 @@ import { Sections } from './components/Sections';
 import { GalleryPage } from './components/GalleryPage';
 import { ChatPage } from './components/ChatPage';
 import { ProfilePage } from './components/ProfilePage';
+import { LoginPage } from './components/auth/LoginPage';
+import { SignUpPage } from './components/auth/SignUpPage';
+import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { 
   Sparkles, 
   Search, 
@@ -11,7 +15,8 @@ import {
   MessageCircle, 
   Heart, 
   ShoppingCart, 
-  User 
+  User as UserIcon,
+  LogOut
 } from 'lucide-react';
 
 const getTabFromPath = (path: string): string => {
@@ -19,10 +24,14 @@ const getTabFromPath = (path: string): string => {
   if (cleanPath === '/gallery') return 'Gallery';
   if (cleanPath === '/chat') return 'Chat';
   if (cleanPath === '/profile') return 'Profile';
+  if (cleanPath === '/login' || cleanPath === '/signin') return 'Login';
+  if (cleanPath === '/signup' || cleanPath === '/register') return 'SignUp';
+  if (cleanPath === '/forgot-password' || cleanPath === '/reset-password') return 'ForgotPassword';
   return 'Home';
 };
 
-export default function App() {
+function AppContent() {
+  const { user, signOut } = useAuth();
   const [scrollFraction, setScrollFraction] = useState(0);
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -85,13 +94,16 @@ export default function App() {
     if (tab === 'Gallery') targetPath = '/gallery';
     else if (tab === 'Chat') targetPath = '/chat';
     else if (tab === 'Profile') targetPath = '/profile';
+    else if (tab === 'Login') targetPath = '/login';
+    else if (tab === 'SignUp') targetPath = '/signup';
+    else if (tab === 'ForgotPassword') targetPath = '/forgot-password';
 
     if (window.location.pathname !== targetPath) {
       window.history.pushState(null, '', targetPath);
     }
 
-    // If not gallery, scroll to respective section of landing page
-    if (tab !== 'Gallery') {
+    // If not gallery or auth pages, scroll to respective section of landing page
+    if (tab !== 'Gallery' && tab !== 'Login' && tab !== 'SignUp' && tab !== 'ForgotPassword') {
       window.scrollTo({ top: 0, behavior: 'instant' });
       setTimeout(() => {
         let sectionId = '';
@@ -119,6 +131,7 @@ export default function App() {
   };
 
   const isGalleryActive = activeTab === 'Gallery';
+  // Auth view check
 
   return (
     <div className="relative min-h-screen w-full bg-[#020202] text-white">
@@ -180,8 +193,8 @@ export default function App() {
             />
           </div>
 
-          {/* Icons on the Right */}
-          <div className="flex gap-4 items-center select-none">
+          {/* Icons and Auth on the Right */}
+          <div className="flex gap-3 sm:gap-4 items-center select-none">
             <button className="p-2 rounded-full hover:bg-neutral-500/10 transition-colors relative cursor-pointer text-white/60 hover:text-white" title="Notifications">
               <Bell className="w-4.5 h-4.5" />
             </button>
@@ -207,13 +220,43 @@ export default function App() {
               )}
             </button>
 
-            <button 
-              onClick={() => handleTabSwitch('Profile')}
-              className="p-2 rounded-full hover:bg-neutral-500/10 transition-colors relative cursor-pointer text-white/60 hover:text-white" 
-              title="Profile"
-            >
-              <User className="w-4.5 h-4.5" />
-            </button>
+            {/* User Profile or Sign In Link */}
+            {user ? (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => handleTabSwitch('Profile')}
+                  className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer text-white flex items-center gap-1.5 px-2.5" 
+                  title="Profile"
+                >
+                  <UserIcon className="w-4 h-4" />
+                  <span className="text-[11px] font-medium tracking-wide max-w-[90px] truncate hidden sm:inline">
+                    {user.user_metadata?.full_name || user.email?.split('@')[0]}
+                  </span>
+                </button>
+                <button
+                  onClick={signOut}
+                  className="p-2 rounded-full hover:bg-neutral-500/10 transition-colors cursor-pointer text-white/60 hover:text-rose-400"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => handleTabSwitch('Login')}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide border border-white/20 hover:border-white/50 bg-white/5 hover:bg-white/10 text-white transition-all cursor-pointer"
+                >
+                  Sign In
+                </button>
+                <button 
+                  onClick={() => handleTabSwitch('SignUp')}
+                  className="hidden md:inline-flex px-3.5 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-[#C85A32] hover:bg-[#B34D27] text-white shadow-xs transition-all cursor-pointer"
+                >
+                  Join
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
@@ -235,8 +278,14 @@ export default function App() {
         </div>
 
         {/* PRIMARY VIEWPORTS ROUTING */}
-        <div className="pt-24">
-          {isGalleryActive ? (
+        <div className="pt-24 px-4 sm:px-6 md:px-8">
+          {activeTab === 'Login' ? (
+            <LoginPage onNavigate={handleTabSwitch} />
+          ) : activeTab === 'SignUp' ? (
+            <SignUpPage onNavigate={handleTabSwitch} />
+          ) : activeTab === 'ForgotPassword' ? (
+            <ForgotPasswordPage onNavigate={handleTabSwitch} />
+          ) : isGalleryActive ? (
             <GalleryPage onNavigate={handleTabSwitch} onAddToCart={handleAddToCart} />
           ) : activeTab === 'Chat' ? (
             <div className="px-6 py-8">
@@ -253,5 +302,13 @@ export default function App() {
 
       </div>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
