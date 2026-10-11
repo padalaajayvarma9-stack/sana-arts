@@ -44,7 +44,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
 
     if (!isConfigured) {
       setErrorMessage(
-        'Supabase Auth is not connected yet. Please provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file to log in.'
+        'Supabase authentication is not configured yet. Please provide VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your environment variables to log in.'
       );
       return;
     }
@@ -69,9 +69,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
 
     if (!isConfigured) {
       setErrorMessage(
-        `Supabase is not configured yet. Configure the ${
+        `Supabase is not configured yet. Configure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, and enable the ${
           provider === 'google' ? 'Google' : 'Facebook'
-        } OAuth provider in your Supabase project to test social authentication.`
+        } OAuth provider in your Supabase project.`
       );
       return;
     }

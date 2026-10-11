@@ -1,22 +1,37 @@
 /// <reference types="vite/client" />
 import { createClient, SupabaseClient, User, Session } from '@supabase/supabase-js';
 
-// Retrieve Supabase environment variables safely
-const env = (import.meta as any).env || {};
-const supabaseUrl: string | undefined = env.VITE_SUPABASE_URL?.trim();
-const supabaseAnonKey: string | undefined = env.VITE_SUPABASE_ANON_KEY?.trim();
+// Retrieve Supabase environment variables safely using static Vite replacements
+// Supports both VITE_SUPABASE_PUBLISHABLE_KEY (modern Supabase) and VITE_SUPABASE_ANON_KEY (legacy)
+const getEnvVar = (val: unknown): string => (typeof val === 'string' ? val.trim() : '');
+
+const supabaseUrl: string = 
+  getEnvVar(import.meta.env.VITE_SUPABASE_URL) || 
+  getEnvVar((import.meta as any).env?.VITE_SUPABASE_URL);
+
+const supabasePublishableKey: string = 
+  getEnvVar(import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY) || 
+  getEnvVar(import.meta.env.VITE_SUPABASE_ANON_KEY) || 
+  getEnvVar((import.meta as any).env?.VITE_SUPABASE_PUBLISHABLE_KEY) || 
+  getEnvVar((import.meta as any).env?.VITE_SUPABASE_ANON_KEY);
 
 // Check if credentials have been supplied
 export const isSupabaseConfigured = Boolean(
   supabaseUrl && 
-  supabaseAnonKey && 
+  supabasePublishableKey && 
   supabaseUrl !== 'https://your-project-id.supabase.co' &&
   !supabaseUrl.includes('your-project-id')
 );
 
 // Create Supabase client singleton if configured
 export const supabase: SupabaseClient | null = isSupabaseConfigured
-  ? createClient(supabaseUrl!, supabaseAnonKey!)
+  ? createClient(supabaseUrl, supabasePublishableKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      }
+    })
   : null;
 
 export interface AuthResponse<T = any> {
@@ -32,7 +47,7 @@ export async function signInWithEmail(email: string, password: string): Promise<
     return {
       data: null,
       error: new Error(
-        'Supabase is not configured yet. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.'
+        'Supabase is not configured yet. Please add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to your environment variables.'
       )
     };
   }
@@ -61,7 +76,7 @@ export async function signUpWithEmail(
     return {
       data: null,
       error: new Error(
-        'Supabase is not configured yet. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.'
+        'Supabase is not configured yet. Please add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to your environment variables.'
       )
     };
   }
@@ -92,7 +107,7 @@ export async function signInWithOAuth(provider: 'google' | 'facebook'): Promise<
     return {
       data: null,
       error: new Error(
-        `Supabase is not configured yet. Set up ${provider.charAt(0).toUpperCase() + provider.slice(1)} OAuth provider in your Supabase dashboard and add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file.`
+        `Supabase is not configured yet. Set up ${provider.charAt(0).toUpperCase() + provider.slice(1)} OAuth provider in your Supabase dashboard and configure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.`
       )
     };
   }
@@ -119,7 +134,7 @@ export async function sendPasswordResetEmail(email: string): Promise<AuthRespons
     return {
       data: null,
       error: new Error(
-        'Supabase is not configured yet. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file to enable password resets.'
+        'Supabase is not configured yet. Please add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to your environment variables to enable password resets.'
       )
     };
   }

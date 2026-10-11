@@ -36,8 +36,8 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
         <div className="mb-8 p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 backdrop-blur-md text-amber-200/90 text-xs flex items-start gap-3">
           <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <div className="flex-1 leading-relaxed">
-            <span className="font-semibold text-amber-300">Supabase Auth Frontend Ready: </span>
-            The authentication UI and client architecture are configured. To connect live backend authentication, create a Supabase project and add <code className="px-1.5 py-0.5 rounded bg-amber-400/10 font-mono text-amber-300 text-[11px]">VITE_SUPABASE_URL</code> and <code className="px-1.5 py-0.5 rounded bg-amber-400/10 font-mono text-amber-300 text-[11px]">VITE_SUPABASE_ANON_KEY</code> to your environment variables.
+            <span className="font-semibold text-amber-300">Supabase Auth Configuration: </span>
+            To connect live backend authentication, ensure <code className="px-1.5 py-0.5 rounded bg-amber-400/10 font-mono text-amber-300 text-[11px]">VITE_SUPABASE_URL</code> and <code className="px-1.5 py-0.5 rounded bg-amber-400/10 font-mono text-amber-300 text-[11px]">VITE_SUPABASE_PUBLISHABLE_KEY</code> are set in your environment variables.
           </div>
         </div>
       )}

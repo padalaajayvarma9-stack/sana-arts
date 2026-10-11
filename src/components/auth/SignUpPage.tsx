@@ -73,7 +73,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
 
     if (!isConfigured) {
       setErrorMessage(
-        'Supabase Auth is not connected yet. Please add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to your .env file to enable registration.'
+        'Supabase authentication is not configured yet. Please ensure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY are configured in your environment variables.'
       );
       return;
     }
@@ -108,9 +108,9 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
 
     if (!isConfigured) {
       setErrorMessage(
-        `Supabase is not configured yet. Set up the ${
+        `Supabase is not configured yet. Configure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, and enable the ${
           provider === 'google' ? 'Google' : 'Facebook'
-        } OAuth provider in your Supabase project to test social registration.`
+        } OAuth provider in your Supabase project.`
       );
       return;
     }
