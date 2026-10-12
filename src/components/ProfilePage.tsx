@@ -12,11 +12,17 @@ import {
   X,
   Loader2,
   Mail,
+  Lock,
+  Eye,
+  EyeOff,
   ShieldCheck,
   User as UserIcon,
   Sparkles,
   LogIn,
-  UserPlus
+  UserPlus,
+  AlertCircle,
+  CheckCircle2,
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -25,10 +31,33 @@ interface ProfilePageProps {
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
-  const { user, profile, isLoading, isProfileLoading, updateProfile, signOut } = useAuth();
+  const { 
+    user, 
+    profile, 
+    isLoading, 
+    isProfileLoading, 
+    updateProfile, 
+    signOut, 
+    signIn, 
+    signUp, 
+    signInWithProvider 
+  } = useAuth();
+  
   const [activeTab, setActiveTab] = useState<'posts' | 'artworks' | 'saved' | 'tagged'>('posts');
   
-  // Edit Profile modal state
+  // Auth Form State for Logged-Out Visitors
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authConfirmPassword, setAuthConfirmPassword] = useState('');
+  const [authFullName, setAuthFullName] = useState('');
+  const [authAccountType, setAuthAccountType] = useState<'lover' | 'artist'>('lover');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+  const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
+  const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
+
+  // Edit Profile Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFullName, setEditFullName] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -36,11 +65,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
-  // Copy feedback state
+  // Feedback states
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
 
-  // Sync edit form with profile data when modal opens
+  // Sync edit form with profile data
   useEffect(() => {
     if (user) {
       setEditFullName(profile?.fullName || user.user_metadata?.full_name || '');
@@ -86,6 +115,101 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
     }
   };
 
+  // Inline Log In handler inside Profile Section
+  const handleInlineLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthErrorMessage(null);
+    setAuthSuccessMessage(null);
+
+    const cleanEmail = authEmail.trim();
+    if (!cleanEmail) {
+      setAuthErrorMessage('Please enter your email address.');
+      return;
+    }
+    if (!authPassword) {
+      setAuthErrorMessage('Please enter your password.');
+      return;
+    }
+
+    setIsAuthSubmitting(true);
+    try {
+      const res = await signIn(cleanEmail, authPassword);
+      if (!res.success) {
+        setAuthErrorMessage(
+          res.error === 'Invalid login credentials'
+            ? 'Invalid email or password. If you recently created your account, please ensure your email is verified or email confirmation is disabled in your Supabase project.'
+            : (res.error || 'Failed to log in.')
+        );
+      } else {
+        // Logged in successfully! Profile will automatically render
+        setAuthEmail('');
+        setAuthPassword('');
+      }
+    } catch (err: any) {
+      setAuthErrorMessage(err.message || 'An unexpected error occurred during login.');
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
+  // Inline Sign Up handler inside Profile Section
+  const handleInlineSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthErrorMessage(null);
+    setAuthSuccessMessage(null);
+
+    const cleanName = authFullName.trim();
+    const cleanEmail = authEmail.trim();
+
+    if (!cleanName) {
+      setAuthErrorMessage('Please enter your full name.');
+      return;
+    }
+    if (!cleanEmail) {
+      setAuthErrorMessage('Please enter your email address.');
+      return;
+    }
+    if (!authPassword) {
+      setAuthErrorMessage('Please create a password.');
+      return;
+    }
+    if (authPassword.length < 6) {
+      setAuthErrorMessage('Password must be at least 6 characters long.');
+      return;
+    }
+    if (authPassword !== authConfirmPassword) {
+      setAuthErrorMessage('Passwords do not match.');
+      return;
+    }
+
+    setIsAuthSubmitting(true);
+    try {
+      const res = await signUp({
+        email: cleanEmail,
+        password: authPassword,
+        fullName: cleanName,
+        accountType: authAccountType
+      });
+
+      if (!res.success) {
+        setAuthErrorMessage(res.error || 'Registration failed. Please try again.');
+      } else {
+        if (res.message) {
+          setAuthSuccessMessage(
+            `${res.message} If Supabase email confirmation is required, please check your inbox to activate your account, then log in above.`
+          );
+        } else {
+          // Immediate session established
+          setAuthSuccessMessage('Account created and logged in successfully!');
+        }
+      }
+    } catch (err: any) {
+      setAuthErrorMessage(err.message || 'An unexpected error occurred during registration.');
+    } finally {
+      setIsAuthSubmitting(false);
+    }
+  };
+
   // While verifying persistent session from Supabase on mount/refresh
   if (isLoading) {
     return (
@@ -98,37 +222,313 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
     );
   }
 
-  // If user is not logged in, show an authenticated access prompt
+  // ---------------------------------------------------------------------------
+  // 1. VISITOR IS LOGGED OUT: Render Inline Login & Registration in Profile
+  // ---------------------------------------------------------------------------
   if (!user) {
     return (
-      <div className="w-full max-w-4xl mx-auto bg-[#0a0a0a]/50 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl text-white font-sans p-10 md:p-16 text-center select-none">
-        <div className="w-20 h-20 rounded-full border border-white/10 bg-white/[0.02] flex items-center justify-center mx-auto mb-6 text-white/50">
-          <UserSquare2 className="w-10 h-10 stroke-[1.2]" />
+      <div className="w-full max-w-2xl mx-auto bg-[#0a0a0a]/80 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl text-white font-sans overflow-hidden">
+        
+        {/* Header Header Banner */}
+        <div className="p-8 md:p-10 border-b border-white/5 text-center relative bg-gradient-to-b from-white/[0.03] to-transparent">
+          <div className="w-16 h-16 rounded-full border border-white/10 bg-white/[0.02] flex items-center justify-center mx-auto mb-4 text-white/60 shadow-inner">
+            <UserSquare2 className="w-8 h-8 stroke-[1.2]" />
+          </div>
+          <h2 className="text-2xl font-light tracking-wide text-white mb-2">
+            Sana Arts Profile Portal
+          </h2>
+          <p className="text-xs text-white/40 max-w-md mx-auto leading-relaxed">
+            Sign in to view your collected artworks, manage creator commissions, and personalize your account profile.
+          </p>
+
+          {/* Mode Tabs: Log In vs Create Account */}
+          <div className="flex justify-center mt-6">
+            <div className="inline-flex p-1 rounded-xl bg-black/60 border border-white/10 select-none">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('login');
+                  setAuthErrorMessage(null);
+                  setAuthSuccessMessage(null);
+                }}
+                className={`px-6 py-2 rounded-lg text-xs font-bold tracking-wider uppercase transition-all cursor-pointer flex items-center gap-2 ${
+                  authMode === 'login'
+                    ? 'bg-[#C85A32] text-white shadow-md'
+                    : 'text-white/50 hover:text-white'
+                }`}
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Log In</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthMode('signup');
+                  setAuthErrorMessage(null);
+                  setAuthSuccessMessage(null);
+                }}
+                className={`px-6 py-2 rounded-lg text-xs font-bold tracking-wider uppercase transition-all cursor-pointer flex items-center gap-2 ${
+                  authMode === 'signup'
+                    ? 'bg-[#C85A32] text-white shadow-md'
+                    : 'text-white/50 hover:text-white'
+                }`}
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>Create Account</span>
+              </button>
+            </div>
+          </div>
         </div>
-        <h2 className="text-2xl font-light tracking-wide text-white mb-2">Log In to Your Sana Arts Profile</h2>
-        <p className="text-sm text-white/40 max-w-md mx-auto mb-8 font-light leading-relaxed">
-          Log in with your verified Supabase account to view and manage your collected artworks, custom commissions, and profile details.
-        </p>
-        <div className="flex flex-wrap justify-center gap-4">
-          <button
-            onClick={() => onNavigate?.('Login')}
-            className="px-6 py-2.5 bg-[#C85A32] hover:bg-[#B34D27] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-sm tracking-widest uppercase inline-flex items-center gap-2"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>Log In</span>
-          </button>
-          <button
-            onClick={() => onNavigate?.('SignUp')}
-            className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors tracking-widest uppercase inline-flex items-center gap-2 border border-white/10"
-          >
-            <UserPlus className="w-4 h-4" />
-            <span>Create Account</span>
-          </button>
+
+        {/* Form Body */}
+        <div className="p-6 sm:p-10">
+          
+          {/* Error Feedback */}
+          {authErrorMessage && (
+            <div className="mb-6 p-4 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-200 text-xs flex items-start gap-3 backdrop-blur-md">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <div className="flex-1 leading-relaxed">
+                {authErrorMessage}
+              </div>
+            </div>
+          )}
+
+          {/* Success Feedback */}
+          {authSuccessMessage && (
+            <div className="mb-6 p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-200 text-xs flex items-start gap-3 backdrop-blur-md">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+              <div className="flex-1 leading-relaxed">
+                {authSuccessMessage}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 1: LOG IN FORM */}
+          {authMode === 'login' ? (
+            <form onSubmit={handleInlineLogin} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                  <input
+                    type="email"
+                    required
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="your-email@example.com"
+                    disabled={isAuthSubmitting}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-black/40 hover:border-white/20 focus:border-white/40 text-sm text-white placeholder-white/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => onNavigate?.('ForgotPassword')}
+                    className="text-[11px] font-mono text-amber-400 hover:text-amber-300 transition-colors cursor-pointer"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    disabled={isAuthSubmitting}
+                    className="w-full pl-10 pr-11 py-2.5 rounded-xl border border-white/10 bg-black/40 hover:border-white/20 focus:border-white/40 text-sm text-white placeholder-white/20 outline-none transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white transition-colors cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isAuthSubmitting}
+                className="w-full py-3 px-6 rounded-xl bg-white hover:bg-neutral-200 text-black text-xs font-bold uppercase tracking-[0.15em] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 select-none shadow-md mt-2"
+              >
+                {isAuthSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-black" />
+                    <span>Signing In...</span>
+                  </>
+                ) : (
+                  <>
+                    <LogIn className="w-4 h-4" />
+                    <span>Log In to Profile</span>
+                  </>
+                )}
+              </button>
+
+              <div className="pt-4 border-t border-white/5 text-center flex items-center justify-between text-xs text-white/40">
+                <span>Need a full screen?</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('Login')}
+                  className="text-amber-400 hover:text-amber-300 font-mono inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Open Full Login Page</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* TAB 2: CREATE ACCOUNT FORM */
+            <form onSubmit={handleInlineSignUp} className="space-y-4">
+              <div>
+                <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50 mb-1.5">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    value={authFullName}
+                    onChange={(e) => setAuthFullName(e.target.value)}
+                    placeholder="e.g. Maya Lin"
+                    disabled={isAuthSubmitting}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-black/40 hover:border-white/20 focus:border-white/40 text-sm text-white placeholder-white/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50 mb-1.5">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30 pointer-events-none" />
+                  <input
+                    type="email"
+                    required
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="your-email@example.com"
+                    disabled={isAuthSubmitting}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-black/40 hover:border-white/20 focus:border-white/40 text-sm text-white placeholder-white/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Account Type Radio Selector */}
+              <div>
+                <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50 mb-1.5">
+                  Account Type
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAuthAccountType('lover')}
+                    className={`p-2.5 rounded-xl border text-xs font-semibold tracking-wider uppercase transition-all cursor-pointer text-center ${
+                      authAccountType === 'lover'
+                        ? 'border-amber-400 bg-amber-400/10 text-amber-300'
+                        : 'border-white/10 bg-black/30 text-white/50 hover:border-white/20'
+                    }`}
+                  >
+                    Art Collector
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthAccountType('artist')}
+                    className={`p-2.5 rounded-xl border text-xs font-semibold tracking-wider uppercase transition-all cursor-pointer text-center ${
+                      authAccountType === 'artist'
+                        ? 'border-amber-400 bg-amber-400/10 text-amber-300'
+                        : 'border-white/10 bg-black/30 text-white/50 hover:border-white/20'
+                    }`}
+                  >
+                    Artist / Creator
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50 mb-1.5">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    disabled={isAuthSubmitting}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-white/10 bg-black/40 hover:border-white/20 focus:border-white/40 text-sm text-white placeholder-white/20 outline-none transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50 mb-1.5">
+                    Confirm Password
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={authConfirmPassword}
+                    onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    disabled={isAuthSubmitting}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-white/10 bg-black/40 hover:border-white/20 focus:border-white/40 text-sm text-white placeholder-white/20 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isAuthSubmitting}
+                className="w-full py-3 px-6 rounded-xl bg-[#C85A32] hover:bg-[#B34D27] text-white text-xs font-bold uppercase tracking-[0.15em] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 select-none shadow-md mt-2"
+              >
+                {isAuthSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Creating Account...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4" />
+                    <span>Create & Open Profile</span>
+                  </>
+                )}
+              </button>
+
+              <div className="pt-4 border-t border-white/5 text-center flex items-center justify-between text-xs text-white/40">
+                <span>Prefer dedicated page?</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate?.('SignUp')}
+                  className="text-amber-400 hover:text-amber-300 font-mono inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <span>Open Full Sign Up Page</span>
+                  <ExternalLink className="w-3 h-3" />
+                </button>
+              </div>
+            </form>
+          )}
+
         </div>
       </div>
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // 2. USER IS AUTHENTICATED: Display Live Account Profile
+  // ---------------------------------------------------------------------------
   const displayName = profile?.fullName || user.user_metadata?.full_name || 'Art Collector';
   const email = profile?.email || user.email || '';
   const username = email ? email.split('@')[0] : 'collector';
@@ -175,7 +575,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         {/* Profile Info Details */}
         <div className="flex-1 flex flex-col gap-4 text-center md:text-left w-full">
           
-          {/* Row 1: Name and Buttons */}
+          {/* Row 1: Name, Role Badge, and Actions */}
           <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-light tracking-wide text-white uppercase">
@@ -186,16 +586,16 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               </span>
             </div>
             
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-center sm:justify-start">
               <button 
                 onClick={() => setIsEditModalOpen(true)}
-                className="flex-1 sm:flex-none px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white"
+                className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white"
               >
                 Edit Profile
               </button>
               <button 
                 onClick={handleCopyLink}
-                className="flex-1 sm:flex-none px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5"
+                className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5"
               >
                 {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : null}
                 <span>{copiedLink ? 'Link Copied' : 'Share Profile'}</span>
@@ -203,7 +603,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               <button 
                 onClick={signOut}
                 className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold rounded-lg cursor-pointer transition-colors inline-flex items-center justify-center gap-1.5 border border-rose-500/20"
-                title="Sign Out"
+                title="Sign Out of Supabase"
               >
                 <span>Sign Out</span>
               </button>
@@ -332,7 +732,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         </button>
       </div>
 
-      {/* 3. Empty Artwork Area (Same for all tabs) */}
+      {/* 3. Empty Artwork Area */}
       <div className="py-24 px-6 text-center select-none">
         <div className="w-16 h-16 rounded-full border border-white/20 border-dashed flex items-center justify-center mx-auto mb-4 text-white/60">
           <ImageIcon className="w-7 h-7 stroke-[1.2]" />
