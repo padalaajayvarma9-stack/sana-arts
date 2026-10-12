@@ -7,14 +7,21 @@ import {
   signUpWithEmail, 
   signInWithOAuth, 
   sendPasswordResetEmail, 
-  signOutUser 
+  signOutUser,
+  UserProfile,
+  ensureUserProfile,
+  updateUserProfile
 } from '../lib/supabase';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
+  profile: UserProfile | null;
   isLoading: boolean;
+  isProfileLoading: boolean;
   isConfigured: boolean;
+  refreshProfile: () => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signUp: (params: { email: string; password: string; fullName: string; accountType: 'lover' | 'artist' }) => Promise<{ success: boolean; error?: string; message?: string }>;
   signInWithProvider: (provider: 'google' | 'facebook') => Promise<{ success: boolean; error?: string }>;
@@ -27,7 +34,28 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isProfileLoading, setIsProfileLoading] = useState<boolean>(false);
+
+  // Helper function to load and synchronize profile for a given user
+  const syncProfile = async (currentUser: User | null) => {
+    if (!currentUser) {
+      setProfile(null);
+      return;
+    }
+    setIsProfileLoading(true);
+    try {
+      const res = await ensureUserProfile(currentUser);
+      if (res.data) {
+        setProfile(res.data);
+      }
+    } catch (err) {
+      console.error('Error synchronizing user profile:', err);
+    } finally {
+      setIsProfileLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!supabase) {
@@ -36,18 +64,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     // Check active session on mount
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        await syncProfile(session.user);
+      }
       setIsLoading(false);
     }).catch(() => {
       setIsLoading(false);
     });
 
-    // Listen for authentication state changes (e.g. login, logout, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    // Listen for authentication state changes (login, logout, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+      setSession(newSession);
+      const newUser = newSession?.user ?? null;
+      setUser(newUser);
+      if (newUser) {
+        await syncProfile(newUser);
+      } else {
+        setProfile(null);
+      }
       setIsLoading(false);
     });
 
@@ -56,6 +93,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
+  const refreshProfile = async () => {
+    if (user) {
+      await syncProfile(user);
+    }
+  };
+
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) {
+      return { success: false, error: 'User is not logged in.' };
+    }
+    const res = await updateUserProfile(user.id, updates);
+    if (res.error) {
+      return { success: false, error: res.error.message };
+    }
+    if (res.data) {
+      setProfile(res.data);
+    }
+    return { success: true };
+  };
+
   const signIn = async (email: string, password: string) => {
     const { data, error } = await signInWithEmail(email, password);
     if (error) {
@@ -63,6 +120,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
     setUser(data?.user ?? null);
     setSession(data?.session ?? null);
+    if (data?.user) {
+      await syncProfile(data.user);
+    }
     return { success: true };
   };
 
@@ -75,6 +135,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return { success: false, error: error.message };
     }
 
+    if (data?.user) {
+      // Attempt to ensure profile creation immediately
+      try {
+        await ensureUserProfile(data.user, {
+          fullName: params.fullName,
+          accountType: params.accountType
+        });
+      } catch (e) {
+        // Fallback or database trigger handles it
+      }
+    }
+
     // Notice: if Supabase has email confirmation enabled, user is created but session is null until confirmed
     if (data?.user && !data.session) {
       return {
@@ -85,6 +157,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setUser(data?.user ?? null);
     setSession(data?.session ?? null);
+    if (data?.user) {
+      await syncProfile(data.user);
+    }
     return { success: true };
   };
 
@@ -111,6 +186,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await signOutUser();
     setUser(null);
     setSession(null);
+    setProfile(null);
   };
 
   return (
@@ -118,8 +194,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       value={{
         user,
         session,
+        profile,
         isLoading,
+        isProfileLoading,
         isConfigured: isSupabaseConfigured,
+        refreshProfile,
+        updateProfile,
         signIn,
         signUp,
         signInWithProvider,

@@ -31,7 +31,7 @@ const getTabFromPath = (path: string): string => {
 };
 
 function AppContent() {
-  const { user, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
   const [scrollFraction, setScrollFraction] = useState(0);
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
@@ -230,7 +230,7 @@ function AppContent() {
                 >
                   <UserIcon className="w-4 h-4" />
                   <span className="text-[11px] font-medium tracking-wide max-w-[90px] truncate hidden sm:inline">
-                    {user.user_metadata?.full_name || user.email?.split('@')[0]}
+                    {profile?.fullName || user.user_metadata?.full_name || user.email?.split('@')[0]}
                   </span>
                 </button>
                 <button

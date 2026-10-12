@@ -93,7 +93,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
         if (res.message) {
           setSuccessMessage(res.message);
         } else {
-          onNavigate('Home');
+          onNavigate('Profile');
         }
       }
     } catch (err: any) {

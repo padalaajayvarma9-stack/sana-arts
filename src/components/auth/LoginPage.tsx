@@ -55,7 +55,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
       if (!res.success) {
         setErrorMessage(res.error || 'Invalid email or password.');
       } else {
-        onNavigate('Home');
+        onNavigate('Profile');
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'An unexpected error occurred during login.');

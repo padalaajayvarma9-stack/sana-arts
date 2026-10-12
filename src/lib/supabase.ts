@@ -166,3 +166,195 @@ export async function signOutUser(): Promise<AuthResponse<void>> {
     return { data: null, error: err };
   }
 }
+
+export interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  avatarUrl: string | null;
+  accountType: 'lover' | 'artist' | string;
+  bio?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Fetch profile row from public.profiles for a given user UUID
+ */
+export async function fetchUserProfile(userId: string): Promise<AuthResponse<UserProfile>> {
+  if (!supabase) {
+    return { data: null, error: new Error('Supabase client is not initialized.') };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (error) {
+      return { data: null, error: new Error(error.message) };
+    }
+
+    if (!data) {
+      return { data: null, error: null };
+    }
+
+    return {
+      data: {
+        id: data.id,
+        fullName: data.full_name || '',
+        email: data.email || '',
+        avatarUrl: data.avatar_url || null,
+        accountType: data.account_type || 'lover',
+        bio: data.bio || null,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at
+      },
+      error: null
+    };
+  } catch (err: any) {
+    return { data: null, error: err };
+  }
+}
+
+/**
+ * Ensures a profile row exists in public.profiles.
+ * If not present, creates/completes it using authenticated user data.
+ * If the database table does not exist yet (PGRST205), safely falls back to auth metadata.
+ */
+export async function ensureUserProfile(
+  user: User,
+  fallbackMeta?: { fullName?: string; accountType?: string }
+): Promise<AuthResponse<UserProfile>> {
+  if (!supabase) {
+    return { data: null, error: new Error('Supabase client is not initialized.') };
+  }
+
+  const fullName = 
+    user.user_metadata?.full_name || 
+    fallbackMeta?.fullName || 
+    user.email?.split('@')[0] || 
+    '';
+  const email = user.email || '';
+  const accountType = 
+    user.user_metadata?.account_type || 
+    fallbackMeta?.accountType || 
+    'lover';
+  const avatarUrl = user.user_metadata?.avatar_url || null;
+
+  try {
+    // 1. Attempt to fetch existing profile row
+    const existing = await fetchUserProfile(user.id);
+    if (existing.data) {
+      return existing;
+    }
+
+    // 2. Profile row not found, attempt upsert
+    const payload = {
+      id: user.id,
+      full_name: fullName,
+      email: email,
+      account_type: accountType,
+      avatar_url: avatarUrl,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data: upserted, error: upsertErr } = await supabase
+      .from('profiles')
+      .upsert(payload, { onConflict: 'id' })
+      .select('*')
+      .maybeSingle();
+
+    if (upsertErr) {
+      // Table may not have been created yet in SQL editor; gracefully provide in-memory profile
+      return {
+        data: {
+          id: user.id,
+          fullName,
+          email,
+          avatarUrl,
+          accountType,
+          bio: null
+        },
+        error: null
+      };
+    }
+
+    return {
+      data: {
+        id: upserted?.id || user.id,
+        fullName: upserted?.full_name || fullName,
+        email: upserted?.email || email,
+        avatarUrl: upserted?.avatar_url || avatarUrl,
+        accountType: upserted?.account_type || accountType,
+        bio: upserted?.bio || null,
+        createdAt: upserted?.created_at,
+        updatedAt: upserted?.updated_at
+      },
+      error: null
+    };
+  } catch (err: any) {
+    return {
+      data: {
+        id: user.id,
+        fullName,
+        email,
+        avatarUrl,
+        accountType,
+        bio: null
+      },
+      error: null
+    };
+  }
+}
+
+/**
+ * Update user profile row in public.profiles
+ */
+export async function updateUserProfile(
+  userId: string,
+  updates: Partial<UserProfile>
+): Promise<AuthResponse<UserProfile>> {
+  if (!supabase) {
+    return { data: null, error: new Error('Supabase client is not initialized.') };
+  }
+
+  try {
+    const payload: Record<string, any> = {
+      updated_at: new Date().toISOString()
+    };
+    if (updates.fullName !== undefined) payload.full_name = updates.fullName;
+    if (updates.avatarUrl !== undefined) payload.avatar_url = updates.avatarUrl;
+    if (updates.accountType !== undefined) payload.account_type = updates.accountType;
+    if (updates.bio !== undefined) payload.bio = updates.bio;
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(payload)
+      .eq('id', userId)
+      .select('*')
+      .maybeSingle();
+
+    if (error) {
+      return { data: null, error: new Error(error.message) };
+    }
+
+    return {
+      data: {
+        id: data?.id || userId,
+        fullName: data?.full_name ?? updates.fullName ?? '',
+        email: data?.email ?? updates.email ?? '',
+        avatarUrl: data?.avatar_url ?? updates.avatarUrl ?? null,
+        accountType: data?.account_type ?? updates.accountType ?? 'lover',
+        bio: data?.bio ?? updates.bio ?? null,
+        createdAt: data?.created_at,
+        updatedAt: data?.updated_at
+      },
+      error: null
+    };
+  } catch (err: any) {
+    return { data: null, error: err };
+  }
+}
