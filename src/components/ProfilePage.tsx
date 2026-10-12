@@ -14,7 +14,9 @@ import {
   Mail,
   ShieldCheck,
   User as UserIcon,
-  Sparkles
+  Sparkles,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -103,22 +105,24 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         <div className="w-20 h-20 rounded-full border border-white/10 bg-white/[0.02] flex items-center justify-center mx-auto mb-6 text-white/50">
           <UserSquare2 className="w-10 h-10 stroke-[1.2]" />
         </div>
-        <h2 className="text-2xl font-light tracking-wide text-white mb-2">Sign in to your Sana Arts Profile</h2>
+        <h2 className="text-2xl font-light tracking-wide text-white mb-2">Log In to Your Sana Arts Profile</h2>
         <p className="text-sm text-white/40 max-w-md mx-auto mb-8 font-light leading-relaxed">
-          Log in with your verified Supabase credentials to manage your collected artworks, custom commissions, and account details.
+          Log in with your verified Supabase account to view and manage your collected artworks, custom commissions, and profile details.
         </p>
-        <div className="flex justify-center gap-4">
+        <div className="flex flex-wrap justify-center gap-4">
           <button
             onClick={() => onNavigate?.('Login')}
-            className="px-6 py-2.5 bg-[#C85A32] hover:bg-[#B34D27] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-sm tracking-widest uppercase"
+            className="px-6 py-2.5 bg-[#C85A32] hover:bg-[#B34D27] text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-sm tracking-widest uppercase inline-flex items-center gap-2"
           >
-            Sign In
+            <LogIn className="w-4 h-4" />
+            <span>Log In</span>
           </button>
           <button
             onClick={() => onNavigate?.('SignUp')}
-            className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors tracking-widest uppercase"
+            className="px-6 py-2.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors tracking-widest uppercase inline-flex items-center gap-2 border border-white/10"
           >
-            Create Account
+            <UserPlus className="w-4 h-4" />
+            <span>Create Account</span>
           </button>
         </div>
       </div>

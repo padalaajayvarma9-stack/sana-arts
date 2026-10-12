@@ -102,8 +102,15 @@ function AppContent() {
       window.history.pushState(null, '', targetPath);
     }
 
-    // If not gallery or auth pages, scroll to respective section of landing page
-    if (tab !== 'Gallery' && tab !== 'Login' && tab !== 'SignUp' && tab !== 'ForgotPassword') {
+    // If not a dedicated page view (Gallery, Profile, Chat, Auth), scroll to section on landing page
+    if (
+      tab !== 'Gallery' && 
+      tab !== 'Profile' && 
+      tab !== 'Chat' && 
+      tab !== 'Login' && 
+      tab !== 'SignUp' && 
+      tab !== 'ForgotPassword'
+    ) {
       window.scrollTo({ top: 0, behavior: 'instant' });
       setTimeout(() => {
         let sectionId = '';
