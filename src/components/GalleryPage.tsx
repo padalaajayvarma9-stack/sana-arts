@@ -401,12 +401,23 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onNavigate, onAddToCar
               <span className="text-[11px] bg-amber-950/50 border border-amber-500/10 text-amber-500 font-bold px-2 py-0.5 rounded-full">
                 ★ {artist.rating} Rating
               </span>
-              <button 
-                onClick={() => onNavigate('Profile')}
-                className="mt-4 px-4 py-2 border border-white/10 text-white hover:bg-white hover:text-black rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
-              >
-                View Profile
-              </button>
+              <div className="flex gap-2 mt-4">
+                <button 
+                  onClick={() => onNavigate('Profile')}
+                  className="px-3 py-1.5 border border-white/10 text-white hover:bg-white hover:text-black rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer"
+                >
+                  Profile
+                </button>
+                <button 
+                  onClick={() => {
+                    window.sessionStorage.setItem('sana_chat_target_name', artist.name);
+                    onNavigate('Chat');
+                  }}
+                  className="px-3.5 py-1.5 bg-[#0095F6] hover:bg-[#1877F2] text-white rounded-full text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer shadow-sm"
+                >
+                  Message
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -532,13 +543,14 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onNavigate, onAddToCar
                       </button>
                       <button 
                         onClick={() => {
-                          alert(`Initiating counter proposal for ${selectedArt.title}. Opening chat...`);
+                          window.sessionStorage.setItem('sana_chat_target_name', selectedArt.artist);
+                          window.sessionStorage.setItem('sana_chat_artwork_title', selectedArt.title);
                           setSelectedArtId(null);
                           onNavigate('Chat');
                         }}
                         className="px-5 py-2.5 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-full text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer"
                       >
-                        Buy Now
+                        Inquire / Buy
                       </button>
                     </div>
                   </div>
@@ -605,7 +617,8 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onNavigate, onAddToCar
                 <div className="border-t border-white/10 p-4 px-6 bg-black/40 flex justify-between items-center">
                   <button 
                     onClick={() => {
-                      alert(`Negotiating commission request for ${selectedArt.artist}. Switching to commission direct builder.`);
+                      window.sessionStorage.setItem('sana_chat_target_name', selectedArt.artist);
+                      window.sessionStorage.setItem('sana_chat_artwork_title', `Custom Commission related to "${selectedArt.title}"`);
                       setSelectedArtId(null);
                       onNavigate('Chat');
                     }}

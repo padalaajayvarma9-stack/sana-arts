@@ -588,6 +588,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
             
             <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-center sm:justify-start">
               <button 
+                onClick={() => onNavigate ? onNavigate('Chat') : null}
+                className="px-4 py-1.5 bg-[#0095F6] hover:bg-[#1877F2] text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <span>Direct Messages</span>
+              </button>
+              <button 
                 onClick={() => setIsEditModalOpen(true)}
                 className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white"
               >
