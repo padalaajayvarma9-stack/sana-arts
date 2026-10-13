@@ -19,6 +19,27 @@ import {
   LogOut
 } from 'lucide-react';
 
+const isPageReload = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const navEntries = window.performance?.getEntriesByType?.('navigation');
+    if (navEntries && navEntries.length > 0) {
+      if ((navEntries[0] as PerformanceNavigationTiming).type === 'reload') {
+        return true;
+      }
+    }
+    if ((window.performance as any)?.navigation?.type === 1) {
+      return true;
+    }
+    if (window.sessionStorage?.getItem('sana_was_reloaded') === 'true') {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+};
+
 const getTabFromPath = (path: string): string => {
   const cleanPath = path.toLowerCase().replace(/\/+$/, '') || '/';
   if (cleanPath === '/gallery') return 'Gallery';
@@ -35,7 +56,25 @@ function AppContent() {
   const [scrollFraction, setScrollFraction] = useState(0);
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      return getTabFromPath(window.location.pathname);
+      const initialTab = getTabFromPath(window.location.pathname);
+      const isReload = isPageReload();
+
+      // If user refreshed while on Chat (or if path is /chat on reload), redirect to Home
+      if (isReload && initialTab === 'Chat') {
+        if (window.location.pathname !== '/') {
+          window.history.replaceState(null, '', '/');
+        }
+        try {
+          window.sessionStorage.removeItem('sana_was_reloaded');
+        } catch {}
+        return 'Home';
+      }
+
+      try {
+        window.sessionStorage.removeItem('sana_was_reloaded');
+      } catch {}
+
+      return initialTab;
     }
     return 'Home';
   });
@@ -44,6 +83,35 @@ function AppContent() {
   const [wishlistCount, setWishlistCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
+
+  // Track page reloads across browser sessions & beforeunload events
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      try {
+        sessionStorage.setItem('sana_was_reloaded', 'true');
+      } catch {}
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  // Guarantee redirection to Home if refreshed on Chat
+  useEffect(() => {
+    if (isPageReload()) {
+      const currentTab = getTabFromPath(window.location.pathname);
+      if (currentTab === 'Chat' || window.location.pathname.toLowerCase().startsWith('/chat')) {
+        setActiveTab('Home');
+        if (window.location.pathname !== '/') {
+          window.history.replaceState(null, '', '/');
+        }
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      }
+    }
+    try {
+      sessionStorage.removeItem('sana_was_reloaded');
+    } catch {}
+  }, []);
 
   // Sync active tab with browser back/forward navigation
   useEffect(() => {
