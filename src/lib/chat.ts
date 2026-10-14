@@ -115,7 +115,7 @@ export async function fetchUserConversations(currentUserId: string): Promise<Con
           avatarUrl: prof?.avatar_url || null,
           accountType: prof?.account_type || 'artist',
           initials: getInitials(name),
-          online: true,
+          online: false,
         },
       };
     });

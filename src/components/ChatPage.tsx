@@ -19,6 +19,7 @@ import {
   LogIn
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useSocial } from '../context/SocialContext';
 import { 
   ConversationItem, 
   ChatMessage, 
@@ -46,6 +47,14 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   targetUserName
 }) => {
   const { user, profile } = useAuth();
+  const { 
+    isUserOnline, 
+    getUserStatusText, 
+    chatTargetUserId, 
+    chatTargetUserName, 
+    clearChatTarget, 
+    openUserProfile 
+  } = useSocial();
 
   const [activeTab, setActiveTab] = useState<'primary' | 'general' | 'requests'>('primary');
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -123,8 +132,8 @@ export const ChatPage: React.FC<ChatPageProps> = ({
   // Handle external navigation target (e.g. from artwork page or artist profile)
   useEffect(() => {
     const checkTargetUser = async () => {
-      const explicitTargetId = targetUserId || window.sessionStorage.getItem('sana_chat_target_id');
-      const explicitTargetName = targetUserName || window.sessionStorage.getItem('sana_chat_target_name');
+      const explicitTargetId = targetUserId || chatTargetUserId || window.sessionStorage.getItem('sana_chat_target_id');
+      const explicitTargetName = targetUserName || chatTargetUserName || window.sessionStorage.getItem('sana_chat_target_name');
       const explicitArtwork = window.sessionStorage.getItem('sana_chat_artwork_title');
 
       if (!user) return;
@@ -146,6 +155,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
 
       if (resolvedUserId && resolvedUserId !== user.id) {
         window.sessionStorage.removeItem('sana_chat_target_id');
+        clearChatTarget();
         const res = await getOrCreateConversation(user.id, resolvedUserId);
         if (res.conversationId) {
           await loadConversations(true);
@@ -155,7 +165,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
     };
 
     checkTargetUser();
-  }, [targetUserId, targetUserName, user]);
+  }, [targetUserId, targetUserName, chatTargetUserId, chatTargetUserName, user]);
 
   // Fetch messages and subscribe to Realtime when selectedConversationId changes
   useEffect(() => {
@@ -475,7 +485,7 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                         {conv.otherUser.initials}
                       </div>
                     )}
-                    {conv.otherUser.online && (
+                    {isUserOnline(conv.otherUser.id) && (
                       <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#1ED760] border-2 border-white rounded-full" />
                     )}
                   </div>
@@ -543,7 +553,16 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                 </button>
                 
                 {/* Profile Picture */}
-                <div className="relative">
+                <div 
+                  onClick={() => {
+                    if (activeConversation.otherUser.id && onNavigate) {
+                      openUserProfile(activeConversation.otherUser.id);
+                      onNavigate('Profile');
+                    }
+                  }}
+                  className="relative cursor-pointer hover:opacity-90 transition-opacity"
+                  title={`View ${activeConversation.otherUser.name}'s profile`}
+                >
                   {activeConversation.otherUser.avatarUrl ? (
                     <img 
                       src={activeConversation.otherUser.avatarUrl} 
@@ -555,22 +574,38 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                       {activeConversation.otherUser.initials}
                     </div>
                   )}
-                  {activeConversation.otherUser.online && (
+                  {isUserOnline(activeConversation.otherUser.id) && (
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#1ED760] border-2 border-white rounded-full" />
                   )}
                 </div>
                 
                 <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-bold text-sm text-[#262626]">
+                  <div 
+                    onClick={() => {
+                      if (activeConversation.otherUser.id && onNavigate) {
+                        openUserProfile(activeConversation.otherUser.id);
+                        onNavigate('Profile');
+                      }
+                    }}
+                    className="flex items-center gap-1.5 cursor-pointer group"
+                    title={`View ${activeConversation.otherUser.name}'s profile`}
+                  >
+                    <span className="font-bold text-sm text-[#262626] group-hover:text-[#0095F6] transition-colors">
                       {activeConversation.otherUser.name}
                     </span>
                     <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-[#EFEFEF] text-[#737373]">
                       {activeConversation.otherUser.accountType}
                     </span>
                   </div>
-                  <span className="text-[11px] text-[#737373] block">
-                    {activeConversation.otherUser.online ? 'Active now' : 'Online'}
+                  <span className="text-[11px] text-[#737373] flex items-center gap-1">
+                    {isUserOnline(activeConversation.otherUser.id) ? (
+                      <>
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#1ED760]" />
+                        <span className="text-emerald-600 font-medium">Active now</span>
+                      </>
+                    ) : (
+                      <span>{getUserStatusText(activeConversation.otherUser.id)}</span>
+                    )}
                   </span>
                 </div>
               </div>
@@ -593,8 +628,15 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                 </button>
                 <button 
                   className="hover:text-[#737373] cursor-pointer" 
-                  title="Details"
-                  onClick={() => alert(`Participant: ${activeConversation.otherUser.name}\nID: ${activeConversation.otherUser.id}`)}
+                  title="View Profile"
+                  onClick={() => {
+                    if (activeConversation.otherUser.id && onNavigate) {
+                      openUserProfile(activeConversation.otherUser.id);
+                      onNavigate('Profile');
+                    } else {
+                      alert(`Participant: ${activeConversation.otherUser.name}\nID: ${activeConversation.otherUser.id}`);
+                    }
+                  }}
                 >
                   <Info className="w-5 h-5 stroke-[1.8]" />
                 </button>
@@ -772,17 +814,22 @@ export const ChatPage: React.FC<ChatPageProps> = ({
                     className="flex items-center justify-between p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      {p.avatarUrl ? (
-                        <img 
-                          src={p.avatarUrl} 
-                          alt={p.name} 
-                          className="w-10 h-10 rounded-full object-cover border"
-                        />
-                      ) : (
-                        <div className={`w-10 h-10 rounded-full border flex items-center justify-center font-bold text-xs ${getAvatarColor(p.name)}`}>
-                          {p.initials}
-                        </div>
-                      )}
+                      <div className="relative">
+                        {p.avatarUrl ? (
+                          <img 
+                            src={p.avatarUrl} 
+                            alt={p.name} 
+                            className="w-10 h-10 rounded-full object-cover border"
+                          />
+                        ) : (
+                          <div className={`w-10 h-10 rounded-full border flex items-center justify-center font-bold text-xs ${getAvatarColor(p.name)}`}>
+                            {p.initials}
+                          </div>
+                        )}
+                        {isUserOnline(p.id) && (
+                          <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-[#1ED760] border-2 border-white rounded-full" />
+                        )}
+                      </div>
                       <div>
                         <span className="font-semibold text-sm text-[#262626] block">{p.name}</span>
                         <span className="text-[11px] text-[#737373] capitalize">{p.accountType}</span>

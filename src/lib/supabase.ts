@@ -171,9 +171,12 @@ export interface UserProfile {
   id: string;
   fullName: string;
   email: string;
+  username?: string;
   avatarUrl: string | null;
   accountType: 'lover' | 'artist' | string;
   bio?: string | null;
+  showOnlineStatus?: boolean;
+  lastSeenAt?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -201,14 +204,19 @@ export async function fetchUserProfile(userId: string): Promise<AuthResponse<Use
       return { data: null, error: null };
     }
 
+    const derivedUser = data.username || (data.email ? data.email.split('@')[0] : 'creator');
+
     return {
       data: {
         id: data.id,
         fullName: data.full_name || '',
         email: data.email || '',
+        username: derivedUser,
         avatarUrl: data.avatar_url || null,
         accountType: data.account_type || 'lover',
         bio: data.bio || null,
+        showOnlineStatus: data.show_online_status !== undefined ? data.show_online_status : true,
+        lastSeenAt: data.last_seen_at || data.updated_at,
         createdAt: data.created_at,
         updatedAt: data.updated_at
       },
@@ -269,41 +277,52 @@ export async function ensureUserProfile(
 
     if (upsertErr) {
       // Table may not have been created yet in SQL editor; gracefully provide in-memory profile
+      const derivedU = user.email ? user.email.split('@')[0] : 'creator';
       return {
         data: {
           id: user.id,
           fullName,
           email,
+          username: derivedU,
           avatarUrl,
           accountType,
-          bio: null
+          bio: null,
+          showOnlineStatus: true,
         },
         error: null
       };
     }
+
+    const derivedUser = upserted?.username || (email ? email.split('@')[0] : 'creator');
 
     return {
       data: {
         id: upserted?.id || user.id,
         fullName: upserted?.full_name || fullName,
         email: upserted?.email || email,
+        username: derivedUser,
         avatarUrl: upserted?.avatar_url || avatarUrl,
         accountType: upserted?.account_type || accountType,
         bio: upserted?.bio || null,
+        showOnlineStatus: upserted?.show_online_status ?? true,
+        lastSeenAt: upserted?.last_seen_at || upserted?.updated_at,
         createdAt: upserted?.created_at,
         updatedAt: upserted?.updated_at
       },
       error: null
     };
   } catch (err: any) {
+    const fallbackU = user.email ? user.email.split('@')[0] : 'creator';
     return {
       data: {
         id: user.id,
         fullName,
         email,
+        username: fallbackU,
         avatarUrl,
         accountType,
-        bio: null
+        bio: null,
+        showOnlineStatus: true,
       },
       error: null
     };
@@ -329,26 +348,54 @@ export async function updateUserProfile(
     if (updates.avatarUrl !== undefined) payload.avatar_url = updates.avatarUrl;
     if (updates.accountType !== undefined) payload.account_type = updates.accountType;
     if (updates.bio !== undefined) payload.bio = updates.bio;
+    if (updates.username !== undefined) payload.username = updates.username.trim().replace(/^@+/, '');
+    if (updates.showOnlineStatus !== undefined) payload.show_online_status = updates.showOnlineStatus;
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('profiles')
       .update(payload)
       .eq('id', userId)
       .select('*')
       .maybeSingle();
 
+    // If new columns don't exist yet in DB (code 42703), retry without them
+    if (error && error.code === '42703') {
+      const basicPayload: Record<string, any> = {
+        updated_at: new Date().toISOString()
+      };
+      if (updates.fullName !== undefined) basicPayload.full_name = updates.fullName;
+      if (updates.avatarUrl !== undefined) basicPayload.avatar_url = updates.avatarUrl;
+      if (updates.accountType !== undefined) basicPayload.account_type = updates.accountType;
+      if (updates.bio !== undefined) basicPayload.bio = updates.bio;
+
+      const retryRes = await supabase
+        .from('profiles')
+        .update(basicPayload)
+        .eq('id', userId)
+        .select('*')
+        .maybeSingle();
+
+      data = retryRes.data;
+      error = retryRes.error;
+    }
+
     if (error) {
       return { data: null, error: new Error(error.message) };
     }
+
+    const derivedUser = data?.username || updates.username || (data?.email ? data.email.split('@')[0] : 'creator');
 
     return {
       data: {
         id: data?.id || userId,
         fullName: data?.full_name ?? updates.fullName ?? '',
         email: data?.email ?? updates.email ?? '',
+        username: derivedUser,
         avatarUrl: data?.avatar_url ?? updates.avatarUrl ?? null,
         accountType: data?.account_type ?? updates.accountType ?? 'lover',
         bio: data?.bio ?? updates.bio ?? null,
+        showOnlineStatus: updates.showOnlineStatus !== undefined ? updates.showOnlineStatus : (data?.show_online_status ?? true),
+        lastSeenAt: data?.last_seen_at || data?.updated_at,
         createdAt: data?.created_at,
         updatedAt: data?.updated_at
       },

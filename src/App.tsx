@@ -8,6 +8,8 @@ import { LoginPage } from './components/auth/LoginPage';
 import { SignUpPage } from './components/auth/SignUpPage';
 import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SocialProvider, useSocial } from './context/SocialContext';
+import { AccountSearchModal } from './components/AccountSearchModal';
 import { 
   Sparkles, 
   Search, 
@@ -53,7 +55,14 @@ const getTabFromPath = (path: string): string => {
 
 function AppContent() {
   const { user, profile, signOut } = useAuth();
+  const { 
+    targetProfileId, 
+    setTargetProfileId, 
+    openUserProfile, 
+    openChatWithUser 
+  } = useSocial();
   const [scrollFraction, setScrollFraction] = useState(0);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       const initialTab = getTabFromPath(window.location.pathname);
@@ -113,15 +122,30 @@ function AppContent() {
     } catch {}
   }, []);
 
-  // Sync active tab with browser back/forward navigation
+  // Sync active tab and target user ID with browser back/forward navigation
   useEffect(() => {
     const handlePopState = () => {
-      setActiveTab(getTabFromPath(window.location.pathname));
+      const newTab = getTabFromPath(window.location.pathname);
+      setActiveTab(newTab);
+      if (newTab === 'Profile') {
+        const params = new URLSearchParams(window.location.search);
+        const profileId = params.get('id');
+        setTargetProfileId(profileId || null);
+      }
     };
+
+    // Check initial query params on mount
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const initialProfileId = params.get('id');
+      if (initialProfileId) {
+        setTargetProfileId(initialProfileId);
+      }
+    }
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [setTargetProfileId]);
 
   // Initial loading delay with smooth fade-out for asset & WebGL initialization
   useEffect(() => {
@@ -154,19 +178,28 @@ function AppContent() {
   }, []);
 
   // Handler for navbar tab switching
-  const handleTabSwitch = (tab: string) => {
+  const handleTabSwitch = (tab: string, explicitProfileId?: string | null) => {
     setActiveTab(tab);
+
+    if (tab === 'Profile') {
+      if (explicitProfileId !== undefined) {
+        setTargetProfileId(explicitProfileId);
+      }
+    }
     
     // Sync browser URL pathname with active view
     let targetPath = '/';
     if (tab === 'Gallery') targetPath = '/gallery';
     else if (tab === 'Chat') targetPath = '/chat';
-    else if (tab === 'Profile') targetPath = '/profile';
+    else if (tab === 'Profile') {
+      const activeId = explicitProfileId !== undefined ? explicitProfileId : targetProfileId;
+      targetPath = activeId ? `/profile?id=${activeId}` : '/profile';
+    }
     else if (tab === 'Login') targetPath = '/login';
     else if (tab === 'SignUp') targetPath = '/signup';
     else if (tab === 'ForgotPassword') targetPath = '/forgot-password';
 
-    if (window.location.pathname !== targetPath) {
+    if (window.location.pathname + window.location.search !== targetPath) {
       window.history.pushState(null, '', targetPath);
     }
 
@@ -243,7 +276,13 @@ function AppContent() {
               return (
                 <button
                   key={tab}
-                  onClick={() => handleTabSwitch(tab)}
+                  onClick={() => {
+                    if (tab === 'Profile') {
+                      handleTabSwitch('Profile', null);
+                    } else {
+                      handleTabSwitch(tab);
+                    }
+                  }}
                   className={`hover:translate-y-[-1px] transition-all cursor-pointer relative pb-1 ${
                     isActive 
                       ? 'text-white font-extrabold border-b-2 border-white'
@@ -257,14 +296,21 @@ function AppContent() {
           </nav>
 
           {/* Clean Search Bar */}
-          <div className="relative w-full md:w-60">
+          <div 
+            onClick={() => setIsSearchModalOpen(true)}
+            className="relative w-full md:w-60 cursor-pointer"
+          >
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
             <input 
               type="text" 
               placeholder="Search drawings or artists..." 
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-1.5 rounded-full text-xs font-medium outline-none border border-white/10 bg-[#0e0e0e]/80 text-white placeholder-white/20 focus:border-white/30 transition-colors"
+              onFocus={() => setIsSearchModalOpen(true)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearchModalOpen(true);
+              }}
+              className="w-full pl-9 pr-4 py-1.5 rounded-full text-xs font-medium outline-none border border-white/10 bg-[#0e0e0e]/80 text-white placeholder-white/20 focus:border-white/30 transition-colors cursor-pointer"
             />
           </div>
 
@@ -299,7 +345,7 @@ function AppContent() {
             {user ? (
               <div className="flex items-center gap-2">
                 <button 
-                  onClick={() => handleTabSwitch('Profile')}
+                  onClick={() => handleTabSwitch('Profile', null)}
                   className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer text-white flex items-center gap-1.5 px-2.5" 
                   title="Profile"
                 >
@@ -368,12 +414,35 @@ function AppContent() {
             </div>
           ) : activeTab === 'Profile' ? (
             <div className="px-6 py-8">
-              <ProfilePage onNavigate={handleTabSwitch} />
+              <ProfilePage 
+                onNavigate={handleTabSwitch} 
+                targetUserId={targetProfileId}
+                onOpenChat={(targetUid, targetName) => {
+                  openChatWithUser(targetUid, targetName);
+                  handleTabSwitch('Chat');
+                }}
+              />
             </div>
           ) : (
             <Sections scrollFraction={scrollFraction} />
           )}
         </div>
+
+        {/* INSTAGRAM-STYLE ACCOUNT SEARCH MODAL */}
+        <AccountSearchModal
+          isOpen={isSearchModalOpen}
+          onClose={() => {
+            setIsSearchModalOpen(false);
+            setSearchQuery('');
+          }}
+          onSelectUser={(selectedUserId) => {
+            setIsSearchModalOpen(false);
+            setSearchQuery('');
+            openUserProfile(selectedUserId);
+            handleTabSwitch('Profile', selectedUserId);
+          }}
+          initialQuery={searchQuery}
+        />
 
       </div>
     </div>
@@ -383,7 +452,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <SocialProvider>
+        <AppContent />
+      </SocialProvider>
     </AuthProvider>
   );
 }

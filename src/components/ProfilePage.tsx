@@ -22,15 +22,37 @@ import {
   UserPlus,
   AlertCircle,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  MessageCircle,
+  UserCheck,
+  ArrowLeft,
+  Activity,
+  Users
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useSocial } from '../context/SocialContext';
+import { FollowListModal } from './FollowListModal';
+import { 
+  fetchUserProfile, 
+  UserProfile 
+} from '../lib/supabase';
+import { 
+  fetchFollowStats, 
+  FollowStats, 
+  deriveUsername 
+} from '../lib/social';
 
 interface ProfilePageProps {
   onNavigate?: (tab: string) => void;
+  targetUserId?: string | null;
+  onOpenChat?: (userId: string, userName?: string) => void;
 }
 
-export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
+export const ProfilePage: React.FC<ProfilePageProps> = ({ 
+  onNavigate,
+  targetUserId: propTargetUserId,
+  onOpenChat
+}) => {
   const { 
     user, 
     profile, 
@@ -39,10 +61,39 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
     updateProfile, 
     signOut, 
     signIn, 
-    signUp, 
-    signInWithProvider 
+    signUp 
   } = useAuth();
+
+  const {
+    isUserOnline,
+    getUserStatusText,
+    isFollowing,
+    toggleFollow,
+    targetProfileId,
+    setTargetProfileId,
+    openChatWithUser
+  } = useSocial();
   
+  // Resolve active profile ID being viewed (prop or context)
+  const activeTargetId = propTargetUserId || targetProfileId;
+  const isViewingOther = Boolean(activeTargetId && activeTargetId !== user?.id);
+
+  const [otherProfile, setOtherProfile] = useState<UserProfile | null>(null);
+  const [isLoadingOtherProfile, setIsLoadingOtherProfile] = useState<boolean>(false);
+
+  // Follow statistics
+  const [followStats, setFollowStats] = useState<FollowStats>({
+    followersCount: 0,
+    followingCount: 0,
+    isFollowing: false
+  });
+  const [isLoadingStats, setIsLoadingStats] = useState(false);
+  const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+
+  // Follow List Modal State
+  const [followModalOpen, setFollowModalOpen] = useState(false);
+  const [followModalType, setFollowModalType] = useState<'Followers' | 'Following'>('Followers');
+
   const [activeTab, setActiveTab] = useState<'posts' | 'artworks' | 'saved' | 'tagged'>('posts');
   
   // Auth Form State for Logged-Out Visitors
@@ -60,8 +111,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   // Edit Profile Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editFullName, setEditFullName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
   const [editBio, setEditBio] = useState('');
   const [editAvatarUrl, setEditAvatarUrl] = useState('');
+  const [editShowOnline, setEditShowOnline] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
 
@@ -71,23 +124,135 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
   // Sync edit form with profile data
   useEffect(() => {
-    if (user) {
+    if (user && !isViewingOther) {
       setEditFullName(profile?.fullName || user.user_metadata?.full_name || '');
+      setEditUsername(profile?.username || (user.email ? user.email.split('@')[0] : 'creator'));
       setEditBio(profile?.bio || '');
       setEditAvatarUrl(profile?.avatarUrl || user.user_metadata?.avatar_url || '');
+      setEditShowOnline(profile?.showOnlineStatus !== false);
     }
-  }, [profile, user, isEditModalOpen]);
+  }, [profile, user, isEditModalOpen, isViewingOther]);
+
+  // Load target user's profile if viewing another user
+  useEffect(() => {
+    if (!isViewingOther || !activeTargetId) {
+      setOtherProfile(null);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingOtherProfile(true);
+
+    const loadOther = async () => {
+      try {
+        const res = await fetchUserProfile(activeTargetId);
+        if (isMounted && res.data) {
+          setOtherProfile(res.data);
+        }
+      } catch (err) {
+        console.error('Error fetching target profile:', err);
+      } finally {
+        if (isMounted) {
+          setIsLoadingOtherProfile(false);
+        }
+      }
+    };
+
+    loadOther();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTargetId, isViewingOther]);
+
+  // Load follow stats for currently viewed profile (either own or target)
+  const targetIdForStats = isViewingOther ? activeTargetId : user?.id;
+
+  const loadFollowStats = async () => {
+    if (!targetIdForStats) return;
+    setIsLoadingStats(true);
+    try {
+      const stats = await fetchFollowStats(targetIdForStats, user?.id);
+      setFollowStats(stats);
+    } catch (err) {
+      console.error('Failed to load follow stats:', err);
+    } finally {
+      setIsLoadingStats(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFollowStats();
+  }, [targetIdForStats, user?.id]);
+
+  // Keep follow state in sync with global context
+  useEffect(() => {
+    if (isViewingOther && activeTargetId) {
+      setFollowStats((prev) => ({
+        ...prev,
+        isFollowing: isFollowing(activeTargetId)
+      }));
+    }
+  }, [isViewingOther, activeTargetId, isFollowing]);
+
+  const handleToggleFollow = async () => {
+    if (!activeTargetId) return;
+    if (!user) {
+      alert('Please log in or create an account to follow creators.');
+      return;
+    }
+
+    setIsTogglingFollow(true);
+    const nextState = !followStats.isFollowing;
+
+    // Optimistic update of stats
+    setFollowStats((prev) => ({
+      ...prev,
+      isFollowing: nextState,
+      followersCount: Math.max(0, prev.followersCount + (nextState ? 1 : -1))
+    }));
+
+    const res = await toggleFollow(activeTargetId);
+    setIsTogglingFollow(false);
+
+    if (!res.success) {
+      // Revert if failed
+      setFollowStats((prev) => ({
+        ...prev,
+        isFollowing: !nextState,
+        followersCount: Math.max(0, prev.followersCount + (!nextState ? 1 : -1))
+      }));
+    }
+  };
+
+  const handleOpenChat = () => {
+    if (!activeTargetId) return;
+    const participantName = otherProfile?.fullName || 'Sana Artist';
+
+    if (onOpenChat) {
+      onOpenChat(activeTargetId, participantName);
+    } else {
+      openChatWithUser(activeTargetId, participantName);
+    }
+
+    if (onNavigate) {
+      onNavigate('Chat');
+    }
+  };
 
   const handleCopyLink = () => {
-    const url = `${window.location.origin}/profile`;
+    const url = isViewingOther && activeTargetId
+      ? `${window.location.origin}/profile?id=${activeTargetId}`
+      : `${window.location.origin}/profile`;
     navigator.clipboard.writeText(url);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
   const handleCopyId = () => {
-    if (!user) return;
-    navigator.clipboard.writeText(user.id);
+    const idToCopy = isViewingOther && activeTargetId ? activeTargetId : user?.id;
+    if (!idToCopy) return;
+    navigator.clipboard.writeText(idToCopy);
     setCopiedId(true);
     setTimeout(() => setCopiedId(false), 2500);
   };
@@ -99,8 +264,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
     const res = await updateProfile({
       fullName: editFullName.trim(),
+      username: editUsername.trim(),
       bio: editBio.trim() || null,
-      avatarUrl: editAvatarUrl.trim() || null
+      avatarUrl: editAvatarUrl.trim() || null,
+      showOnlineStatus: editShowOnline
     });
 
     setIsSaving(false);
@@ -137,11 +304,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
       if (!res.success) {
         setAuthErrorMessage(
           res.error === 'Invalid login credentials'
-            ? 'Invalid email or password. If you recently created your account, please ensure your email is verified or email confirmation is disabled in your Supabase project.'
+            ? 'Invalid email or password. Please verify your credentials.'
             : (res.error || 'Failed to log in.')
         );
       } else {
-        // Logged in successfully! Profile will automatically render
         setAuthEmail('');
         setAuthPassword('');
       }
@@ -195,11 +361,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         setAuthErrorMessage(res.error || 'Registration failed. Please try again.');
       } else {
         if (res.message) {
-          setAuthSuccessMessage(
-            `${res.message} If Supabase email confirmation is required, please check your inbox to activate your account, then log in above.`
-          );
+          setAuthSuccessMessage(res.message);
         } else {
-          // Immediate session established
           setAuthSuccessMessage('Account created and logged in successfully!');
         }
       }
@@ -211,7 +374,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   };
 
   // While verifying persistent session from Supabase on mount/refresh
-  if (isLoading) {
+  if (isLoading || (isViewingOther && isLoadingOtherProfile)) {
     return (
       <div className="w-full max-w-4xl mx-auto bg-[#0a0a0a]/50 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl text-white font-sans p-16 text-center select-none flex flex-col items-center justify-center min-h-[360px]">
         <Loader2 className="w-8 h-8 animate-spin text-amber-400 mb-4" />
@@ -223,13 +386,13 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   }
 
   // ---------------------------------------------------------------------------
-  // 1. VISITOR IS LOGGED OUT: Render Inline Login & Registration in Profile
+  // 1. VISITOR IS LOGGED OUT & NOT VIEWING ANOTHER USER: Inline Login / Signup
   // ---------------------------------------------------------------------------
-  if (!user) {
+  if (!user && !isViewingOther) {
     return (
       <div className="w-full max-w-2xl mx-auto bg-[#0a0a0a]/80 backdrop-blur-xl border border-white/10 rounded-3xl shadow-2xl text-white font-sans overflow-hidden">
         
-        {/* Header Header Banner */}
+        {/* Header Banner */}
         <div className="p-8 md:p-10 border-b border-white/5 text-center relative bg-gradient-to-b from-white/[0.03] to-transparent">
           <div className="w-16 h-16 rounded-full border border-white/10 bg-white/[0.02] flex items-center justify-center mx-auto mb-4 text-white/60 shadow-inner">
             <UserSquare2 className="w-8 h-8 stroke-[1.2]" />
@@ -282,28 +445,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
         {/* Form Body */}
         <div className="p-6 sm:p-10">
-          
-          {/* Error Feedback */}
           {authErrorMessage && (
             <div className="mb-6 p-4 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-200 text-xs flex items-start gap-3 backdrop-blur-md">
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div className="flex-1 leading-relaxed">
-                {authErrorMessage}
-              </div>
+              <div className="flex-1 leading-relaxed">{authErrorMessage}</div>
             </div>
           )}
 
-          {/* Success Feedback */}
           {authSuccessMessage && (
             <div className="mb-6 p-4 rounded-xl bg-emerald-950/40 border border-emerald-500/30 text-emerald-200 text-xs flex items-start gap-3 backdrop-blur-md">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-              <div className="flex-1 leading-relaxed">
-                {authSuccessMessage}
-              </div>
+              <div className="flex-1 leading-relaxed">{authSuccessMessage}</div>
             </div>
           )}
 
-          {/* TAB 1: LOG IN FORM */}
           {authMode === 'login' ? (
             <form onSubmit={handleInlineLogin} className="space-y-4">
               <div>
@@ -389,7 +544,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               </div>
             </form>
           ) : (
-            /* TAB 2: CREATE ACCOUNT FORM */
             <form onSubmit={handleInlineSignUp} className="space-y-4">
               <div>
                 <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50 mb-1.5">
@@ -427,7 +581,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                 </div>
               </div>
 
-              {/* Account Type Radio Selector */}
               <div>
                 <label className="block text-[11px] font-mono font-medium uppercase tracking-widest text-white/50 mb-1.5">
                   Account Type
@@ -527,26 +680,69 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
   }
 
   // ---------------------------------------------------------------------------
-  // 2. USER IS AUTHENTICATED: Display Live Account Profile
+  // 2. ACTIVE PROFILE DISPLAY (Current User or Another User)
   // ---------------------------------------------------------------------------
-  const displayName = profile?.fullName || user.user_metadata?.full_name || 'Art Collector';
-  const email = profile?.email || user.email || '';
-  const username = email ? email.split('@')[0] : 'collector';
-  const accountType = profile?.accountType || user.user_metadata?.account_type || 'lover';
-  const avatarUrl = profile?.avatarUrl || user.user_metadata?.avatar_url || null;
+  const activeProfile = isViewingOther ? otherProfile : profile;
+  const currentDisplayedId = isViewingOther ? activeTargetId : user?.id;
+
+  const displayName = 
+    activeProfile?.fullName || 
+    (!isViewingOther ? user?.user_metadata?.full_name : 'Sana Creator') || 
+    'Sana Artist';
+
+  const email = !isViewingOther ? (activeProfile?.email || user?.email || '') : '';
+  const username = deriveUsername({
+    username: activeProfile?.username,
+    email: !isViewingOther ? email : undefined,
+    full_name: displayName
+  });
+
+  const accountType = 
+    activeProfile?.accountType || 
+    (!isViewingOther ? user?.user_metadata?.account_type : 'artist') || 
+    'lover';
+
+  const avatarUrl = 
+    activeProfile?.avatarUrl || 
+    (!isViewingOther ? user?.user_metadata?.avatar_url : null) || 
+    null;
+
+  const isTargetOnline = isUserOnline(currentDisplayedId);
+  const statusText = getUserStatusText(currentDisplayedId, activeProfile?.lastSeenAt);
 
   return (
     <div className="w-full max-w-4xl mx-auto bg-[#0a0a0a]/50 backdrop-blur-md border border-white/10 rounded-2xl shadow-2xl text-white font-sans pb-16 overflow-hidden">
       
+      {/* Back button if viewing another user */}
+      {isViewingOther && (
+        <div className="px-6 pt-6 flex items-center justify-between border-b border-white/5 pb-4">
+          <button
+            onClick={() => setTargetProfileId(null)}
+            className="inline-flex items-center gap-2 text-xs font-mono tracking-wider text-white/60 hover:text-white transition-colors cursor-pointer"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>RETURN TO MY PROFILE</span>
+          </button>
+          
+          <div className="flex items-center gap-2 text-xs text-white/40">
+            <span>Viewing artist exhibit</span>
+          </div>
+        </div>
+      )}
+
       {/* 1. Profile Header Section */}
-      <div className="px-6 py-10 md:px-12 md:py-12 border-b border-white/5 flex flex-col md:flex-row items-center md:items-start gap-8 md:gap-16">
+      <div className="px-6 py-8 md:px-12 md:py-10 border-b border-white/5 flex flex-col md:flex-row items-center md:items-start gap-8 md:gap-14">
         
-        {/* Profile Picture Placeholder / Avatar */}
+        {/* Profile Picture Placeholder / Avatar with Presence Indicator */}
         <div className="relative flex-shrink-0 select-none">
           <div 
-            onClick={() => setIsEditModalOpen(true)}
-            className="w-24 h-24 md:w-36 md:h-36 rounded-full bg-white/[0.02] border border-white/10 flex items-center justify-center text-white/40 shadow-inner relative group cursor-pointer hover:bg-white/[0.05] transition-colors overflow-hidden"
-            title="Update Profile Picture"
+            onClick={() => {
+              if (!isViewingOther) setIsEditModalOpen(true);
+            }}
+            className={`w-24 h-24 md:w-36 md:h-36 rounded-full bg-white/[0.02] border border-white/10 flex items-center justify-center text-white/40 shadow-inner relative group ${
+              !isViewingOther ? 'cursor-pointer hover:bg-white/[0.05]' : ''
+            } transition-colors overflow-hidden`}
+            title={!isViewingOther ? 'Update Profile Picture' : displayName}
           >
             {avatarUrl ? (
               <img 
@@ -562,21 +758,32 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
               </div>
             )}
 
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-              <Camera className="w-6 h-6 stroke-[1.5]" />
-            </div>
-
-            <div className="absolute bottom-1 right-1 w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#0095F6] hover:bg-[#1877F2] text-white flex items-center justify-center shadow transition-colors border border-black">
-              <Plus className="w-3.5 h-3.5 md:w-5 md:h-5 stroke-[2.5]" />
-            </div>
+            {!isViewingOther && (
+              <>
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                  <Camera className="w-6 h-6 stroke-[1.5]" />
+                </div>
+                <div className="absolute bottom-1 right-1 w-6 h-6 md:w-8 md:h-8 rounded-full bg-[#0095F6] hover:bg-[#1877F2] text-white flex items-center justify-center shadow transition-colors border border-black">
+                  <Plus className="w-3.5 h-3.5 md:w-5 md:h-5 stroke-[2.5]" />
+                </div>
+              </>
+            )}
           </div>
+
+          {/* Large Online Indicator Badge */}
+          {isTargetOnline && (
+            <span
+              className="absolute top-1 right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-black ring-2 ring-emerald-400/40 animate-pulse"
+              title="Active now"
+            />
+          )}
         </div>
 
         {/* Profile Info Details */}
         <div className="flex-1 flex flex-col gap-4 text-center md:text-left w-full">
           
-          {/* Row 1: Name, Role Badge, and Actions */}
-          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6">
+          {/* Row 1: Name, Role Badge, Online Status, and Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 flex-wrap">
             <div className="flex items-center gap-3">
               <h2 className="text-xl font-light tracking-wide text-white uppercase">
                 {displayName}
@@ -585,77 +792,167 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                 {accountType === 'artist' ? 'Artist' : 'Art Collector'}
               </span>
             </div>
+
+            {/* Online Status Pill */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/[0.04] border border-white/5 text-[11px] font-mono">
+              <span className={`w-2 h-2 rounded-full ${isTargetOnline ? 'bg-emerald-400 animate-pulse' : 'bg-white/20'}`} />
+              <span className={isTargetOnline ? 'text-emerald-400 font-medium' : 'text-white/40'}>
+                {statusText}
+              </span>
+            </div>
             
+            {/* ACTION BUTTONS */}
             <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-center sm:justify-start">
-              <button 
-                onClick={() => onNavigate ? onNavigate('Chat') : null}
-                className="px-4 py-1.5 bg-[#0095F6] hover:bg-[#1877F2] text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5 shadow-sm"
-              >
-                <span>Direct Messages</span>
-              </button>
-              <button 
-                onClick={() => setIsEditModalOpen(true)}
-                className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white"
-              >
-                Edit Profile
-              </button>
-              <button 
-                onClick={handleCopyLink}
-                className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5"
-              >
-                {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : null}
-                <span>{copiedLink ? 'Link Copied' : 'Share Profile'}</span>
-              </button>
-              <button 
-                onClick={signOut}
-                className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold rounded-lg cursor-pointer transition-colors inline-flex items-center justify-center gap-1.5 border border-rose-500/20"
-                title="Sign Out of Supabase"
-              >
-                <span>Sign Out</span>
-              </button>
-              <button 
-                onClick={() => setIsEditModalOpen(true)}
-                className="p-1.5 hover:bg-white/10 rounded-full text-white/80 hover:text-white cursor-pointer"
-                title="Options"
-              >
-                <Settings className="w-5 h-5 stroke-[1.5]" />
-              </button>
+              {isViewingOther ? (
+                <>
+                  {/* Follow Button */}
+                  <button
+                    onClick={handleToggleFollow}
+                    disabled={isTogglingFollow}
+                    className={`px-5 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all inline-flex items-center justify-center gap-1.5 shadow-sm ${
+                      followStats.isFollowing
+                        ? 'bg-white/10 hover:bg-rose-500/20 hover:text-rose-300 text-white/90 border border-white/10'
+                        : 'bg-[#C85A32] hover:bg-[#B34D27] text-white'
+                    }`}
+                  >
+                    {isTogglingFollow ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : followStats.isFollowing ? (
+                      <>
+                        <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>Following</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-3.5 h-3.5" />
+                        <span>Follow</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Message Button */}
+                  <button
+                    onClick={handleOpenChat}
+                    className="px-4 py-1.5 bg-[#0095F6] hover:bg-[#1877F2] text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Message</span>
+                  </button>
+
+                  {/* Share Profile */}
+                  <button 
+                    onClick={handleCopyLink}
+                    className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : null}
+                    <span>{copiedLink ? 'Link Copied' : 'Share'}</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Own Profile Actions */}
+                  <button 
+                    onClick={() => onNavigate ? onNavigate('Chat') : null}
+                    className="px-4 py-1.5 bg-[#0095F6] hover:bg-[#1877F2] text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Direct Messages</span>
+                  </button>
+                  <button 
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white"
+                  >
+                    Edit Profile
+                  </button>
+                  <button 
+                    onClick={handleCopyLink}
+                    className="px-4 py-1.5 bg-white/10 hover:bg-white/20 text-xs font-bold rounded-lg cursor-pointer transition-colors text-white inline-flex items-center justify-center gap-1.5"
+                  >
+                    {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : null}
+                    <span>{copiedLink ? 'Link Copied' : 'Share'}</span>
+                  </button>
+                  <button 
+                    onClick={signOut}
+                    className="px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-bold rounded-lg cursor-pointer transition-colors inline-flex items-center justify-center gap-1.5 border border-rose-500/20"
+                    title="Sign Out of Supabase"
+                  >
+                    <span>Sign Out</span>
+                  </button>
+                  <button 
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="p-1.5 hover:bg-white/10 rounded-full text-white/80 hover:text-white cursor-pointer"
+                    title="Options"
+                  >
+                    <Settings className="w-5 h-5 stroke-[1.5]" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Row 2: Statistics */}
+          {/* Row 2: Statistics (Clickable Followers & Following!) */}
           <div className="flex justify-center md:justify-start gap-8 md:gap-10 border-y sm:border-y-0 border-white/5 py-3 sm:py-0 text-sm select-none">
             <div>
               <span className="font-semibold text-white">0</span> <span className="text-white/60">posts</span>
             </div>
-            <div>
-              <span className="font-semibold text-white">0</span> <span className="text-white/60">followers</span>
-            </div>
-            <div>
-              <span className="font-semibold text-white">0</span> <span className="text-white/60">following</span>
-            </div>
+            
+            {/* Followers counter - Click to open modal */}
+            <button
+              type="button"
+              onClick={() => {
+                setFollowModalType('Followers');
+                setFollowModalOpen(true);
+              }}
+              className="hover:text-amber-300 transition-colors cursor-pointer text-left"
+              title="Click to view followers"
+            >
+              <span className="font-semibold text-white group-hover:text-amber-300">
+                {followStats.followersCount}
+              </span>{' '}
+              <span className="text-white/60 hover:text-white underline-offset-4 hover:underline">
+                followers
+              </span>
+            </button>
+
+            {/* Following counter - Click to open modal */}
+            <button
+              type="button"
+              onClick={() => {
+                setFollowModalType('Following');
+                setFollowModalOpen(true);
+              }}
+              className="hover:text-amber-300 transition-colors cursor-pointer text-left"
+              title="Click to view following"
+            >
+              <span className="font-semibold text-white">
+                {followStats.followingCount}
+              </span>{' '}
+              <span className="text-white/60 hover:text-white underline-offset-4 hover:underline">
+                following
+              </span>
+            </button>
+
             <div>
               <span className="font-semibold text-white">0</span> <span className="text-white/60">artworks</span>
-            </div>
-            <div>
-              <span className="font-semibold text-white">0</span> <span className="text-white/60">likes</span>
             </div>
           </div>
 
           {/* Row 3: Username, Email & User ID */}
           <div className="flex flex-col gap-1.5 text-sm">
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-              <span className="font-semibold text-white/50">@{username}</span>
-              <span className="inline-flex items-center gap-1 text-xs text-white/40">
-                <Mail className="w-3 h-3 text-white/30" />
-                <span>{email}</span>
-              </span>
+              <span className="font-semibold text-white/50 font-mono">@{username}</span>
+              {email ? (
+                <span className="inline-flex items-center gap-1 text-xs text-white/40">
+                  <Mail className="w-3 h-3 text-white/30" />
+                  <span>{email}</span>
+                </span>
+              ) : null}
             </div>
 
             {/* User Bio */}
-            {profile?.bio ? (
+            {activeProfile?.bio ? (
               <p className="text-xs text-white/70 max-w-lg mt-1 font-light leading-relaxed">
-                {profile.bio}
+                {activeProfile.bio}
               </p>
             ) : null}
 
@@ -663,12 +960,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
             <div className="mt-2 flex items-center justify-center md:justify-start gap-2">
               <button
                 onClick={handleCopyId}
-                title="Click to copy Supabase User UUID"
+                title="Click to copy User UUID"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 text-[10px] font-mono text-white/40 hover:text-white/70 transition-colors cursor-pointer"
               >
                 <ShieldCheck className="w-3 h-3 text-amber-400/70" />
                 <span>UUID:</span>
-                <span className="max-w-[150px] truncate">{user.id}</span>
+                <span className="max-w-[150px] truncate">{currentDisplayedId}</span>
                 {copiedId ? (
                   <Check className="w-2.5 h-2.5 text-emerald-400" />
                 ) : (
@@ -745,7 +1042,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         </div>
         <h3 className="text-xl font-light text-white/90 mb-1">No posts yet</h3>
         <p className="text-xs text-white/40 max-w-xs mx-auto mb-6">
-          Your uploaded artworks and curated collections will appear here.
+          {isViewingOther 
+            ? `${displayName} has not published artworks yet.`
+            : 'Your uploaded artworks and curated collections will appear here.'}
         </p>
         <button 
           onClick={() => onNavigate?.('Gallery')}
@@ -755,8 +1054,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
         </button>
       </div>
 
-      {/* 4. Edit Profile Modal */}
-      {isEditModalOpen && (
+      {/* 4. Edit Profile Modal (Own Profile Only) */}
+      {!isViewingOther && isEditModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-[#0e0e0e] border border-white/10 rounded-2xl p-6 text-white shadow-2xl relative">
             <div className="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
@@ -788,6 +1087,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
 
               <div>
                 <label className="block text-[11px] font-mono uppercase tracking-wider text-white/50 mb-1">
+                  Username (@handle)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 text-xs font-mono">@</span>
+                  <input 
+                    type="text" 
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ''))}
+                    placeholder="creator_handle"
+                    className="w-full pl-8 pr-3.5 py-2 rounded-lg bg-black/50 border border-white/10 text-xs text-white placeholder-white/30 outline-none focus:border-amber-400/50 transition-colors font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase tracking-wider text-white/50 mb-1">
                   Avatar / Profile Picture URL
                 </label>
                 <input 
@@ -810,6 +1125,29 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
                   placeholder="Tell collectors and art enthusiasts about your practice..."
                   className="w-full px-3.5 py-2 rounded-lg bg-black/50 border border-white/10 text-xs text-white placeholder-white/30 outline-none focus:border-amber-400/50 transition-colors resize-none"
                 />
+              </div>
+
+              {/* Online Presence Privacy Toggle */}
+              <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+                <div>
+                  <span className="block text-xs font-medium text-white">Show Activity Status</span>
+                  <span className="text-[11px] text-white/40 block leading-tight">
+                    Allow others to see when you are currently online
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditShowOnline(!editShowOnline)}
+                  className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
+                    editShowOnline ? 'bg-emerald-500' : 'bg-neutral-800'
+                  }`}
+                >
+                  <span
+                    className={`block w-4 h-4 rounded-full bg-white transition-transform ${
+                      editShowOnline ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
               </div>
 
               {saveStatus && (
@@ -838,6 +1176,23 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ onNavigate }) => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* 5. Followers & Following Modal */}
+      {followModalOpen && targetIdForStats && (
+        <FollowListModal
+          isOpen={followModalOpen}
+          onClose={() => setFollowModalOpen(false)}
+          targetUserId={targetIdForStats}
+          title={followModalType}
+          onSelectUser={(selectedId) => {
+            if (selectedId === user?.id) {
+              setTargetProfileId(null);
+            } else {
+              setTargetProfileId(selectedId);
+            }
+          }}
+        />
       )}
 
     </div>
