@@ -65,25 +65,23 @@ function AppContent() {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof window !== 'undefined') {
-      const initialTab = getTabFromPath(window.location.pathname);
+      // Disable automatic browser scroll restoration so it never jumps down to any section
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+
       const isReload = isPageReload();
 
-      // If user refreshed while on Chat (or if path is /chat on reload), redirect to Home
-      if (isReload && initialTab === 'Chat') {
-        if (window.location.pathname !== '/') {
+      // When user refreshes, ALWAYS keep to Home section and reset scroll to top
+      if (isReload) {
+        if (window.location.pathname !== '/' || window.location.hash || window.location.search) {
           window.history.replaceState(null, '', '/');
         }
-        try {
-          window.sessionStorage.removeItem('sana_was_reloaded');
-        } catch {}
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
         return 'Home';
       }
 
-      try {
-        window.sessionStorage.removeItem('sana_was_reloaded');
-      } catch {}
-
-      return initialTab;
+      return getTabFromPath(window.location.pathname);
     }
     return 'Home';
   });
@@ -105,17 +103,18 @@ function AppContent() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  // Guarantee redirection to Home if refreshed on Chat
+  // Guarantee redirection to Home and top scroll (0,0) whenever refreshed
   useEffect(() => {
+    if ('scrollRestoration' in window.history) {
+      window.history.scrollRestoration = 'manual';
+    }
+
     if (isPageReload()) {
-      const currentTab = getTabFromPath(window.location.pathname);
-      if (currentTab === 'Chat' || window.location.pathname.toLowerCase().startsWith('/chat')) {
-        setActiveTab('Home');
-        if (window.location.pathname !== '/') {
-          window.history.replaceState(null, '', '/');
-        }
-        window.scrollTo({ top: 0, behavior: 'instant' });
+      setActiveTab('Home');
+      if (window.location.pathname !== '/' || window.location.hash || window.location.search) {
+        window.history.replaceState(null, '', '/');
       }
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     }
     try {
       sessionStorage.removeItem('sana_was_reloaded');
@@ -203,27 +202,22 @@ function AppContent() {
       window.history.pushState(null, '', targetPath);
     }
 
-    // If not a dedicated page view (Gallery, Profile, Chat, Auth), scroll to section on landing page
+    // Scroll to top immediately for dedicated views and Home
     if (
-      tab !== 'Gallery' && 
-      tab !== 'Profile' && 
-      tab !== 'Chat' && 
-      tab !== 'Login' && 
-      tab !== 'SignUp' && 
-      tab !== 'ForgotPassword'
+      tab === 'Gallery' || 
+      tab === 'Profile' || 
+      tab === 'Chat' || 
+      tab === 'Login' || 
+      tab === 'SignUp' || 
+      tab === 'ForgotPassword' ||
+      tab === 'Home'
     ) {
-      window.scrollTo({ top: 0, behavior: 'instant' });
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    } else {
       setTimeout(() => {
         let sectionId = '';
-        if (tab === 'Home') {
-          // Scroll to the very top hero section
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-          return;
-        }
-        else if (tab === 'Explore') sectionId = 'artists';
-        else if (tab === 'Profile') sectionId = 'contact'; // profile
+        if (tab === 'Explore') sectionId = 'artists';
         else if (tab === 'About') sectionId = 'about';
-        else if (tab === 'Chat') sectionId = 'chat'; // direct commissions chat
         
         if (sectionId) {
           const el = document.getElementById(sectionId);
@@ -424,7 +418,7 @@ function AppContent() {
               />
             </div>
           ) : (
-            <Sections scrollFraction={scrollFraction} />
+            <Sections scrollFraction={scrollFraction} onNavigate={handleTabSwitch} />
           )}
         </div>
 

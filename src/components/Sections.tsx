@@ -10,14 +10,13 @@ import {
   FileDown, DollarSign, Info, ChevronLeft, Settings
 } from 'lucide-react';
 import { GlassPanel } from './GlassPanel';
-import { ChatPage } from './ChatPage';
-import { ProfilePage } from './ProfilePage';
 
 interface SectionsProps {
   scrollFraction: number;
+  onNavigate?: (tab: string) => void;
 }
 
-export const Sections: React.FC<SectionsProps> = ({ scrollFraction }) => {
+export const Sections: React.FC<SectionsProps> = ({ scrollFraction, onNavigate }) => {
   const [selectedArt, setSelectedArt] = useState<number | null>(null);
   const [contactForm, setContactForm] = useState({ name: '', email: '', message: '', role: 'Collector' });
   const [formSubmitted, setFormSubmitted] = useState(false);
@@ -808,38 +807,41 @@ export const Sections: React.FC<SectionsProps> = ({ scrollFraction }) => {
 
       {/* 4.5 CHAT SECTION */}
       <section id="chat" className="relative z-20 py-24 bg-black border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
+        <div className="max-w-4xl mx-auto px-4 md:px-8 text-center">
           
           {/* Section Header */}
-          <div className="mb-12 text-center">
+          <div className="mb-8">
             <div className="inline-flex items-center gap-3 text-white/40 mb-3 justify-center">
               <div className="w-8 h-[1px] bg-white/40" />
               <span className="text-xs uppercase tracking-[0.3em] font-medium font-mono">04 / CONVERSE</span>
             </div>
             <h2 className="text-3xl md:text-5xl tracking-tight font-extralight uppercase text-white">
-              SANA <span className="font-semibold">Chat Room</span>
+              SANA <span className="font-semibold">Direct Chat</span>
             </h2>
             <p className="text-sm text-white/50 max-w-md mx-auto mt-3 font-light leading-relaxed">
-              Negotiate counter offers, request custom wedding commissions, and secure payments directly inside direct messages.
+              Negotiate counter offers, request custom handmade commissions, and converse directly with verified artists.
             </p>
           </div>
 
-          
-          {/* Render new Instagram-inspired ChatPage component */}
-          <div className="rounded-xl overflow-hidden shadow-2xl">
-            <ChatPage />
+          <div className="flex justify-center">
+            <button
+              onClick={() => onNavigate ? onNavigate('Chat') : (window.location.href = '/chat')}
+              className="px-8 py-3.5 bg-[#0095F6] hover:bg-[#1877F2] text-white font-semibold text-xs tracking-wider uppercase rounded-full cursor-pointer transition-all shadow-lg hover:shadow-[#0095F6]/20 inline-flex items-center gap-2.5"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Open Direct Messages</span>
+            </button>
           </div>
 
         </div>
       </section>
 
-      
-      {/* 7. ARTIST PROFILE SECTION */}
+      {/* 5. ARTIST PROFILE SECTION */}
       <section id="contact" className="relative z-20 py-24 bg-black border-t border-white/5 text-white/80 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 md:px-8">
+        <div className="max-w-4xl mx-auto px-4 md:px-8 text-center">
           
           {/* Section Header */}
-          <div className="mb-12 text-center">
+          <div className="mb-8">
             <div className="inline-flex items-center gap-3 text-white/40 mb-3 justify-center">
               <div className="w-8 h-[1px] bg-white/40" />
               <span className="text-xs uppercase tracking-[0.3em] font-medium font-mono">05 / PORTFOLIO</span>
@@ -847,14 +849,19 @@ export const Sections: React.FC<SectionsProps> = ({ scrollFraction }) => {
             <h2 className="text-3xl md:text-5xl tracking-tight font-extralight uppercase text-white">
               Artist <span className="font-semibold">Profile</span>
             </h2>
-            <p className="text-sm text-white/50 max-w-md mx-auto mt-3 font-light leading-relaxed mb-12">
+            <p className="text-sm text-white/50 max-w-md mx-auto mt-3 font-light leading-relaxed">
               Manage your artist account, view your dashboard statistics, and upload your custom sketch portfolios.
             </p>
           </div>
 
-          {/* Render new Instagram-inspired ProfilePage component */}
-          <div className="rounded-xl overflow-hidden shadow-2xl">
-            <ProfilePage />
+          <div className="flex justify-center">
+            <button
+              onClick={() => onNavigate ? onNavigate('Profile') : (window.location.href = '/profile')}
+              className="px-8 py-3.5 bg-[#C85A32] hover:bg-[#B34D27] text-white font-semibold text-xs tracking-wider uppercase rounded-full cursor-pointer transition-all shadow-lg inline-flex items-center gap-2.5"
+            >
+              <User className="w-4 h-4" />
+              <span>View Profile & Studio</span>
+            </button>
           </div>
 
         </div>
