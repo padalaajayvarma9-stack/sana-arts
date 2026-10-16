@@ -87,7 +87,13 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
 
             {/* Footer note inside card */}
             <div className="pt-8 mt-8 border-t border-white/5 flex items-center justify-between text-[11px] text-white/30 font-mono">
-              <span>SANA ARTS &bull; ART MARKETPLACE</span>
+              <button
+                type="button"
+                onClick={() => onNavigate('PrivacyPolicy')}
+                className="hover:text-white/70 transition-colors cursor-pointer underline underline-offset-2"
+              >
+                Privacy Policy
+              </button>
               <span>SECURE 256-BIT ENCRYPTION</span>
             </div>
           </div>

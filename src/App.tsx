@@ -8,6 +8,7 @@ import { UploadArtworkPage } from './components/UploadArtworkPage';
 import { LoginPage } from './components/auth/LoginPage';
 import { SignUpPage } from './components/auth/SignUpPage';
 import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
+import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocialProvider, useSocial } from './context/SocialContext';
 import { AccountSearchModal } from './components/AccountSearchModal';
@@ -50,6 +51,7 @@ const getTabFromPath = (path: string): string => {
   if (cleanPath === '/upload') return 'Upload';
   if (cleanPath === '/chat') return 'Chat';
   if (cleanPath === '/profile') return 'Profile';
+  if (cleanPath === '/privacy-policy' || cleanPath === '/privacy' || cleanPath === '/privacypolicy') return 'PrivacyPolicy';
   if (cleanPath === '/login' || cleanPath === '/signin') return 'Login';
   if (cleanPath === '/signup' || cleanPath === '/register') return 'SignUp';
   if (cleanPath === '/forgot-password' || cleanPath === '/reset-password') return 'ForgotPassword';
@@ -73,9 +75,16 @@ function AppContent() {
         window.history.scrollRestoration = 'manual';
       }
 
+      const initialTab = getTabFromPath(window.location.pathname);
+
+      // Privacy policy route must ALWAYS be preserved even on reload or direct entry
+      if (initialTab === 'PrivacyPolicy') {
+        return 'PrivacyPolicy';
+      }
+
       const isReload = isPageReload();
 
-      // When user refreshes, ALWAYS keep to Home section and reset scroll to top
+      // When user refreshes elsewhere, keep to Home section and reset scroll to top
       if (isReload) {
         if (window.location.pathname !== '/' || window.location.hash || window.location.search) {
           window.history.replaceState(null, '', '/');
@@ -84,7 +93,7 @@ function AppContent() {
         return 'Home';
       }
 
-      return getTabFromPath(window.location.pathname);
+      return initialTab;
     }
     return 'Home';
   });
@@ -106,10 +115,17 @@ function AppContent() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  // Guarantee redirection to Home and top scroll (0,0) whenever refreshed
+  // Guarantee redirection to Home and top scroll (0,0) whenever refreshed (except Privacy Policy)
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
+    }
+
+    const currentTab = getTabFromPath(window.location.pathname);
+    if (currentTab === 'PrivacyPolicy') {
+      setActiveTab('PrivacyPolicy');
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      return;
     }
 
     if (isPageReload()) {
@@ -201,6 +217,7 @@ function AppContent() {
     else if (tab === 'Login') targetPath = '/login';
     else if (tab === 'SignUp') targetPath = '/signup';
     else if (tab === 'ForgotPassword') targetPath = '/forgot-password';
+    else if (tab === 'PrivacyPolicy') targetPath = '/privacy-policy';
 
     if (window.location.pathname + window.location.search !== targetPath) {
       window.history.pushState(null, '', targetPath);
@@ -215,6 +232,7 @@ function AppContent() {
       tab === 'Login' || 
       tab === 'SignUp' || 
       tab === 'ForgotPassword' ||
+      tab === 'PrivacyPolicy' ||
       tab === 'Home'
     ) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -439,10 +457,39 @@ function AppContent() {
                 }}
               />
             </div>
+          ) : activeTab === 'PrivacyPolicy' ? (
+            <div className="px-2 sm:px-4 py-4">
+              <PrivacyPolicyPage onNavigate={handleTabSwitch} />
+            </div>
           ) : (
             <Sections scrollFraction={scrollFraction} onNavigate={handleTabSwitch} />
           )}
         </div>
+
+        {/* GLOBAL MINIMAL SANA ARTS FOOTER */}
+        <footer className="mt-16 border-t border-white/5 py-8 px-6 text-xs font-mono text-white/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-serif tracking-widest text-white uppercase font-bold">SANA ARTS</span>
+            <span>&bull; DIGITAL MARKETPLACE</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <button
+              onClick={() => handleTabSwitch('Gallery')}
+              className="hover:text-white transition-colors cursor-pointer"
+            >
+              Exhibitions
+            </button>
+            <button
+              onClick={() => handleTabSwitch('PrivacyPolicy')}
+              className="hover:text-white transition-colors cursor-pointer underline underline-offset-4"
+            >
+              Privacy Policy
+            </button>
+          </div>
+          <div className="text-[10px] text-white/30">
+            &copy; 2026 SANA ARTS. ALL RIGHTS RESERVED.
+          </div>
+        </footer>
 
         {/* INSTAGRAM-STYLE ACCOUNT SEARCH MODAL */}
         <AccountSearchModal

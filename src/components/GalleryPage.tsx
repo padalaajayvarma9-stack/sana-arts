@@ -448,6 +448,14 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onNavigate, onAddToCar
           <div>
             <h4 className="font-serif font-bold text-white mb-4">Support</h4>
             <ul className="space-y-2">
+              <li>
+                <button 
+                  onClick={() => onNavigate ? onNavigate('PrivacyPolicy') : (window.location.href = '/privacy-policy')}
+                  className="hover:text-white/80 transition-colors cursor-pointer text-left"
+                >
+                  Privacy Policy
+                </button>
+              </li>
               <li><a href="#" className="hover:text-white/80 transition-colors">Marketplace Safety</a></li>
               <li><a href="#" className="hover:text-white/80 transition-colors">Shipping Policies</a></li>
               <li><a href="#" className="hover:text-white/80 transition-colors">Contact Curation</a></li>

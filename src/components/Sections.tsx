@@ -867,6 +867,35 @@ export const Sections: React.FC<SectionsProps> = ({ scrollFraction, onNavigate }
         </div>
       </section>
 
+      {/* 6. LANDING PAGE FOOTER */}
+      <footer className="relative z-20 border-t border-white/5 py-12 bg-black text-center text-xs font-mono text-white/40">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="font-serif tracking-widest text-white font-bold uppercase">SANA ARTS</span>
+            <span>&bull; HYDERABAD, INDIA</span>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <button
+              onClick={() => onNavigate ? onNavigate('Gallery') : (window.location.href = '/gallery')}
+              className="hover:text-white transition-colors cursor-pointer"
+            >
+              Exhibitions
+            </button>
+            <button
+              onClick={() => onNavigate ? onNavigate('PrivacyPolicy') : (window.location.href = '/privacy-policy')}
+              className="hover:text-white transition-colors cursor-pointer underline underline-offset-4"
+            >
+              Privacy Policy
+            </button>
+          </div>
+
+          <div className="text-[10px] text-white/30">
+            &copy; 2026 SANA ARTS. ALL RIGHTS RESERVED.
+          </div>
+        </div>
+      </footer>
+
     </div>
   );
 };
