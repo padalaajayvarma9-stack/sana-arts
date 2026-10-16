@@ -9,6 +9,7 @@ import { LoginPage } from './components/auth/LoginPage';
 import { SignUpPage } from './components/auth/SignUpPage';
 import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
+import { TermsOfServicePage } from './components/TermsOfServicePage';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SocialProvider, useSocial } from './context/SocialContext';
 import { AccountSearchModal } from './components/AccountSearchModal';
@@ -52,6 +53,7 @@ const getTabFromPath = (path: string): string => {
   if (cleanPath === '/chat') return 'Chat';
   if (cleanPath === '/profile') return 'Profile';
   if (cleanPath === '/privacy-policy' || cleanPath === '/privacy' || cleanPath === '/privacypolicy') return 'PrivacyPolicy';
+  if (cleanPath === '/terms-of-service' || cleanPath === '/terms' || cleanPath === '/termsofservice') return 'TermsOfService';
   if (cleanPath === '/login' || cleanPath === '/signin') return 'Login';
   if (cleanPath === '/signup' || cleanPath === '/register') return 'SignUp';
   if (cleanPath === '/forgot-password' || cleanPath === '/reset-password') return 'ForgotPassword';
@@ -77,9 +79,9 @@ function AppContent() {
 
       const initialTab = getTabFromPath(window.location.pathname);
 
-      // Privacy policy route must ALWAYS be preserved even on reload or direct entry
-      if (initialTab === 'PrivacyPolicy') {
-        return 'PrivacyPolicy';
+      // Legal routes must ALWAYS be preserved even on reload or direct entry
+      if (initialTab === 'PrivacyPolicy' || initialTab === 'TermsOfService') {
+        return initialTab;
       }
 
       const isReload = isPageReload();
@@ -115,15 +117,15 @@ function AppContent() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  // Guarantee redirection to Home and top scroll (0,0) whenever refreshed (except Privacy Policy)
+  // Guarantee redirection to Home and top scroll (0,0) whenever refreshed (except Legal pages)
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
     }
 
     const currentTab = getTabFromPath(window.location.pathname);
-    if (currentTab === 'PrivacyPolicy') {
-      setActiveTab('PrivacyPolicy');
+    if (currentTab === 'PrivacyPolicy' || currentTab === 'TermsOfService') {
+      setActiveTab(currentTab);
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       return;
     }
@@ -218,6 +220,7 @@ function AppContent() {
     else if (tab === 'SignUp') targetPath = '/signup';
     else if (tab === 'ForgotPassword') targetPath = '/forgot-password';
     else if (tab === 'PrivacyPolicy') targetPath = '/privacy-policy';
+    else if (tab === 'TermsOfService') targetPath = '/terms-of-service';
 
     if (window.location.pathname + window.location.search !== targetPath) {
       window.history.pushState(null, '', targetPath);
@@ -233,6 +236,7 @@ function AppContent() {
       tab === 'SignUp' || 
       tab === 'ForgotPassword' ||
       tab === 'PrivacyPolicy' ||
+      tab === 'TermsOfService' ||
       tab === 'Home'
     ) {
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -457,6 +461,10 @@ function AppContent() {
                 }}
               />
             </div>
+          ) : activeTab === 'TermsOfService' ? (
+            <div className="px-2 sm:px-4 py-4">
+              <TermsOfServicePage onNavigate={handleTabSwitch} />
+            </div>
           ) : activeTab === 'PrivacyPolicy' ? (
             <div className="px-2 sm:px-4 py-4">
               <PrivacyPolicyPage onNavigate={handleTabSwitch} />
@@ -472,7 +480,7 @@ function AppContent() {
             <span className="font-serif tracking-widest text-white uppercase font-bold">SANA ARTS</span>
             <span>&bull; DIGITAL MARKETPLACE</span>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-6">
             <button
               onClick={() => handleTabSwitch('Gallery')}
               className="hover:text-white transition-colors cursor-pointer"
@@ -484,6 +492,12 @@ function AppContent() {
               className="hover:text-white transition-colors cursor-pointer underline underline-offset-4"
             >
               Privacy Policy
+            </button>
+            <button
+              onClick={() => handleTabSwitch('TermsOfService')}
+              className="hover:text-white transition-colors cursor-pointer underline underline-offset-4"
+            >
+              Terms of Service
             </button>
           </div>
           <div className="text-[10px] text-white/30">

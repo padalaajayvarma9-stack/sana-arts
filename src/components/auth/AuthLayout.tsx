@@ -86,14 +86,24 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({
             </div>
 
             {/* Footer note inside card */}
-            <div className="pt-8 mt-8 border-t border-white/5 flex items-center justify-between text-[11px] text-white/30 font-mono">
-              <button
-                type="button"
-                onClick={() => onNavigate('PrivacyPolicy')}
-                className="hover:text-white/70 transition-colors cursor-pointer underline underline-offset-2"
-              >
-                Privacy Policy
-              </button>
+            <div className="pt-8 mt-8 border-t border-white/5 flex flex-wrap items-center justify-between gap-2 text-[11px] text-white/30 font-mono">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => onNavigate('PrivacyPolicy')}
+                  className="hover:text-white/70 transition-colors cursor-pointer underline underline-offset-2"
+                >
+                  Privacy Policy
+                </button>
+                <span>&bull;</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('TermsOfService')}
+                  className="hover:text-white/70 transition-colors cursor-pointer underline underline-offset-2"
+                >
+                  Terms of Service
+                </button>
+              </div>
               <span>SECURE 256-BIT ENCRYPTION</span>
             </div>
           </div>

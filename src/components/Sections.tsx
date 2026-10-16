@@ -875,7 +875,7 @@ export const Sections: React.FC<SectionsProps> = ({ scrollFraction, onNavigate }
             <span>&bull; HYDERABAD, INDIA</span>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center justify-center gap-6">
             <button
               onClick={() => onNavigate ? onNavigate('Gallery') : (window.location.href = '/gallery')}
               className="hover:text-white transition-colors cursor-pointer"
@@ -887,6 +887,12 @@ export const Sections: React.FC<SectionsProps> = ({ scrollFraction, onNavigate }
               className="hover:text-white transition-colors cursor-pointer underline underline-offset-4"
             >
               Privacy Policy
+            </button>
+            <button
+              onClick={() => onNavigate ? onNavigate('TermsOfService') : (window.location.href = '/terms-of-service')}
+              className="hover:text-white transition-colors cursor-pointer underline underline-offset-4"
+            >
+              Terms of Service
             </button>
           </div>
 

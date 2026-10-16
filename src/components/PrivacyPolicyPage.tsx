@@ -83,6 +83,13 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({ onNavigate
 
         <div className="flex items-center gap-2.5">
           <button
+            onClick={() => onNavigate ? onNavigate('TermsOfService') : (window.location.href = '/terms-of-service')}
+            className="px-3.5 py-1.5 rounded-full text-xs font-mono tracking-wider border border-white/10 hover:border-white/30 bg-white/[0.03] hover:bg-white/[0.08] text-white/70 hover:text-white transition-all cursor-pointer"
+          >
+            Terms of Service
+          </button>
+
+          <button
             onClick={handleCopyLink}
             className="px-3.5 py-1.5 rounded-full text-xs font-mono tracking-wider border border-white/10 hover:border-white/30 bg-white/[0.03] hover:bg-white/[0.08] text-white/70 hover:text-white transition-all cursor-pointer inline-flex items-center gap-1.5"
             title="Copy Public Link"
