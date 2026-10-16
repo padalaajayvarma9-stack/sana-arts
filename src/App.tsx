@@ -4,6 +4,7 @@ import { Sections } from './components/Sections';
 import { GalleryPage } from './components/GalleryPage';
 import { ChatPage } from './components/ChatPage';
 import { ProfilePage } from './components/ProfilePage';
+import { UploadArtworkPage } from './components/UploadArtworkPage';
 import { LoginPage } from './components/auth/LoginPage';
 import { SignUpPage } from './components/auth/SignUpPage';
 import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
@@ -18,7 +19,8 @@ import {
   Heart, 
   ShoppingCart, 
   User as UserIcon,
-  LogOut
+  LogOut,
+  Plus
 } from 'lucide-react';
 
 const isPageReload = (): boolean => {
@@ -45,6 +47,7 @@ const isPageReload = (): boolean => {
 const getTabFromPath = (path: string): string => {
   const cleanPath = path.toLowerCase().replace(/\/+$/, '') || '/';
   if (cleanPath === '/gallery') return 'Gallery';
+  if (cleanPath === '/upload') return 'Upload';
   if (cleanPath === '/chat') return 'Chat';
   if (cleanPath === '/profile') return 'Profile';
   if (cleanPath === '/login' || cleanPath === '/signin') return 'Login';
@@ -189,6 +192,7 @@ function AppContent() {
     // Sync browser URL pathname with active view
     let targetPath = '/';
     if (tab === 'Gallery') targetPath = '/gallery';
+    else if (tab === 'Upload') targetPath = '/upload';
     else if (tab === 'Chat') targetPath = '/chat';
     else if (tab === 'Profile') {
       const activeId = explicitProfileId !== undefined ? explicitProfileId : targetProfileId;
@@ -205,6 +209,7 @@ function AppContent() {
     // Scroll to top immediately for dedicated views and Home
     if (
       tab === 'Gallery' || 
+      tab === 'Upload' ||
       tab === 'Profile' || 
       tab === 'Chat' || 
       tab === 'Login' || 
@@ -264,8 +269,8 @@ function AppContent() {
           </div>
 
           {/* Navigation Links in Center / Left-Center */}
-          <nav className="flex gap-6 items-center text-[11px] font-bold uppercase tracking-[0.15em] select-none text-white/50">
-            {['Home', 'Explore', 'Gallery', 'Profile', 'Chat', 'About'].map((tab) => {
+          <nav className="flex gap-5 sm:gap-6 items-center text-[11px] font-bold uppercase tracking-[0.15em] select-none text-white/50">
+            {['Home', 'Explore', 'Gallery', 'Upload', 'Profile', 'Chat', 'About'].map((tab) => {
               const isActive = activeTab === tab;
               return (
                 <button
@@ -338,6 +343,14 @@ function AppContent() {
             {/* User Profile or Sign In Link */}
             {user ? (
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleTabSwitch('Upload')}
+                  className="hidden md:inline-flex px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide bg-[#C85A32] hover:bg-[#B34D27] text-white shadow-xs transition-all cursor-pointer items-center gap-1.5"
+                  title="Upload New Artwork"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Upload</span>
+                </button>
                 <button 
                   onClick={() => handleTabSwitch('Profile', null)}
                   className="p-1.5 rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer text-white flex items-center gap-1.5 px-2.5" 
@@ -400,6 +413,15 @@ function AppContent() {
             <SignUpPage onNavigate={handleTabSwitch} />
           ) : activeTab === 'ForgotPassword' ? (
             <ForgotPasswordPage onNavigate={handleTabSwitch} />
+          ) : activeTab === 'Upload' ? (
+            <div className="px-2 sm:px-4 py-4">
+              <UploadArtworkPage 
+                onNavigate={handleTabSwitch}
+                onUploadSuccess={() => {
+                  handleTabSwitch('Profile', user?.id || null);
+                }}
+              />
+            </div>
           ) : isGalleryActive ? (
             <GalleryPage onNavigate={handleTabSwitch} onAddToCart={handleAddToCart} />
           ) : activeTab === 'Chat' ? (
