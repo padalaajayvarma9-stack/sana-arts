@@ -475,7 +475,7 @@ export const UploadArtworkPage: React.FC<UploadArtworkPageProps> = ({
                     step="1"
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
-                    placeholder="299"
+                    placeholder="500"
                     disabled={isSubmitting}
                     className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-white/10 bg-black/40 hover:border-white/20 focus:border-amber-400/50 text-sm text-white placeholder-white/25 outline-none transition-all font-mono"
                   />

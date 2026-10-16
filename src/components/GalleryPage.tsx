@@ -34,7 +34,7 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onNavigate, onAddToCar
       id: 1,
       title: "Sana Fashion Concept",
       artist: "Sana",
-      price: "₹299",
+      price: "₹500",
       status: "Available",
       medium: "Traditional Art",
       paperSize: "A3 (29.7 x 42.0 cm)",
@@ -120,8 +120,7 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onNavigate, onAddToCar
   // Popular artists list
   const popularArtists = [
     { name: "Sana", role: "Traditional Illustrator", initial: "S", rating: "4.9" },
-    { name: "M. Prasanna", role: "Pencil Mandala Artist", initial: "MP", rating: "5.0" },
-    { name: "Elena Rostova", role: "Abstract Creator", initial: "ER", rating: "4.8" }
+    { name: "M. Prasanna", role: "Pencil Mandala Artist", initial: "MP", rating: "5.0" }
   ];
 
   // Filter Chips list
@@ -387,7 +386,7 @@ export const GalleryPage: React.FC<GalleryPageProps> = ({ onNavigate, onAddToCar
           <h2 className="text-2xl md:text-3xl font-serif font-medium text-white">Popular Artists</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 max-w-4xl mx-auto gap-8">
           {popularArtists.map((artist, idx) => (
             <div 
               key={idx}

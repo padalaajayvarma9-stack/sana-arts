@@ -310,7 +310,7 @@ export const Sections: React.FC<SectionsProps> = ({ scrollFraction, onNavigate }
       type: customType || 'text',
       ...(customType === 'artwork' ? {
         artworkTitle: "Sana Fashion Concept",
-        price: "₹299",
+        price: "₹500",
         statusBadge: "Available",
         desc: "A beautiful, hand-colored concept fashion gown sketch showcasing an elegant combination of pink and purple patterns.",
         mediaUrl: "/fashion_gown.jpg"
@@ -450,7 +450,7 @@ export const Sections: React.FC<SectionsProps> = ({ scrollFraction, onNavigate }
     {
       id: 101,
       title: "Sana Fashion Concept",
-      price: "₹299",
+      price: "₹500",
       status: "Available", // Available, Sold, Commission Available
       image: "/fashion_gown.jpg",
       likes: 420,
