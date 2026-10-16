@@ -22,11 +22,32 @@ import {
   ShoppingCart, 
   User as UserIcon,
   LogOut,
-  Plus
+  Plus,
+  AlertCircle,
+  X
 } from 'lucide-react';
+
+const isOAuthCallback = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    return (
+      hash.includes('access_token=') ||
+      hash.includes('error=') ||
+      hash.includes('error_description=') ||
+      search.includes('code=') ||
+      search.includes('error=')
+    );
+  } catch {
+    return false;
+  }
+};
 
 const isPageReload = (): boolean => {
   if (typeof window === 'undefined') return false;
+  // If returning from an OAuth callback, never treat as a user reload that wipes tokens/routes
+  if (isOAuthCallback()) return false;
   try {
     const navEntries = window.performance?.getEntriesByType?.('navigation');
     if (navEntries && navEntries.length > 0) {
@@ -84,6 +105,11 @@ function AppContent() {
         return initialTab;
       }
 
+      // If returning from OAuth callback, open Profile section to show user profile
+      if (isOAuthCallback()) {
+        return 'Profile';
+      }
+
       const isReload = isPageReload();
 
       // When user refreshes elsewhere, keep to Home section and reset scroll to top
@@ -104,6 +130,37 @@ function AppContent() {
   const [wishlistCount, setWishlistCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+
+  // Check for OAuth errors in URL hash or query params on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      const searchParams = new URLSearchParams(window.location.search);
+      const errorMsg = 
+        hashParams.get('error_description') || 
+        hashParams.get('error') || 
+        searchParams.get('error_description') || 
+        searchParams.get('error');
+
+      if (errorMsg) {
+        console.warn('OAuth authorization error:', errorMsg);
+        setOauthError(decodeURIComponent(errorMsg.replace(/\+/g, ' ')));
+      }
+    } catch {}
+  }, []);
+
+  // When user successfully authenticates while on Login/SignUp view or via OAuth callback, switch to Profile
+  useEffect(() => {
+    if (user && (activeTab === 'Login' || activeTab === 'SignUp' || isOAuthCallback())) {
+      setActiveTab('Profile');
+      if (window.location.hash || window.location.search.includes('code=')) {
+        // Clean URL while keeping /profile
+        window.history.replaceState(null, '', '/profile');
+      }
+    }
+  }, [user, activeTab]);
 
   // Track page reloads across browser sessions & beforeunload events
   useEffect(() => {
@@ -117,7 +174,7 @@ function AppContent() {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
-  // Guarantee redirection to Home and top scroll (0,0) whenever refreshed (except Legal pages)
+  // Guarantee redirection to Home and top scroll (0,0) whenever refreshed (except Legal pages & OAuth callbacks)
   useEffect(() => {
     if ('scrollRestoration' in window.history) {
       window.history.scrollRestoration = 'manual';
@@ -126,6 +183,12 @@ function AppContent() {
     const currentTab = getTabFromPath(window.location.pathname);
     if (currentTab === 'PrivacyPolicy' || currentTab === 'TermsOfService') {
       setActiveTab(currentTab);
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      return;
+    }
+
+    if (isOAuthCallback()) {
+      setActiveTab('Profile');
       window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
       return;
     }
@@ -429,6 +492,30 @@ function AppContent() {
 
         {/* PRIMARY VIEWPORTS ROUTING */}
         <div className="pt-24 px-4 sm:px-6 md:px-8">
+          {/* OAuth Error Alert Banner */}
+          {oauthError && (
+            <div className="max-w-4xl mx-auto mb-6 p-4 rounded-2xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs flex items-start justify-between gap-3 backdrop-blur-xl shadow-xl animate-fade-in">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-rose-100 text-sm mb-1">Facebook / Social Sign-In Notice</div>
+                  <div className="text-white/80 leading-relaxed">{oauthError}</div>
+                  <div className="text-[11px] text-white/50 mt-1 font-mono">
+                    Ensure your redirect URL (<code className="text-amber-300">{typeof window !== 'undefined' ? window.location.origin : ''}</code>) is authorized in Supabase Auth &amp; Meta Developer settings.
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setOauthError(null)}
+                className="p-1 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
           {activeTab === 'Login' ? (
             <LoginPage onNavigate={handleTabSwitch} />
           ) : activeTab === 'SignUp' ? (

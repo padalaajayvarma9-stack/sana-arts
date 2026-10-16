@@ -24,6 +24,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState(false);
+  const [socialProvider, setSocialProvider] = useState<'google' | 'facebook' | null>(null);
 
   const isValidEmail = (str: string) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(str.trim());
@@ -116,15 +117,18 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
     }
 
     setIsSocialLoading(true);
+    setSocialProvider(provider);
     try {
       const res = await signInWithProvider(provider);
       if (!res.success) {
         setErrorMessage(res.error || `Failed to initiate ${provider} registration.`);
+        setIsSocialLoading(false);
+        setSocialProvider(null);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'OAuth error occurred.');
-    } finally {
       setIsSocialLoading(false);
+      setSocialProvider(null);
     }
   };
 
@@ -369,6 +373,7 @@ export const SignUpPage: React.FC<SignUpPageProps> = ({ onNavigate }) => {
         <SocialAuthButtons 
           onSelectProvider={handleSocialAuth}
           isLoading={isSocialLoading}
+          loadingProvider={socialProvider}
           disabled={isSubmitting}
         />
 

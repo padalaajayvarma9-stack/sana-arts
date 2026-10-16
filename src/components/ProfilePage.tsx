@@ -51,6 +51,7 @@ import {
   deleteArtwork, 
   Artwork 
 } from '../lib/artworks';
+import { SocialAuthButtons } from './auth/SocialAuthButtons';
 
 interface ProfilePageProps {
   onNavigate?: (tab: string) => void;
@@ -68,10 +69,12 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
     profile, 
     isLoading, 
     isProfileLoading, 
+    isConfigured,
     updateProfile, 
     signOut, 
     signIn, 
-    signUp 
+    signUp,
+    signInWithProvider
   } = useAuth();
 
   const {
@@ -124,6 +127,37 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
   const [authSuccessMessage, setAuthSuccessMessage] = useState<string | null>(null);
+  const [isSocialLoading, setIsSocialLoading] = useState(false);
+  const [socialProvider, setSocialProvider] = useState<'google' | 'facebook' | null>(null);
+
+  const handleSocialAuth = async (provider: 'google' | 'facebook') => {
+    setAuthErrorMessage(null);
+    setAuthSuccessMessage(null);
+
+    if (!isConfigured) {
+      setAuthErrorMessage(
+        `Supabase authentication is not configured yet. Configure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY, and enable the ${
+          provider === 'google' ? 'Google' : 'Facebook'
+        } OAuth provider.`
+      );
+      return;
+    }
+
+    setIsSocialLoading(true);
+    setSocialProvider(provider);
+    try {
+      const res = await signInWithProvider(provider);
+      if (!res.success) {
+        setAuthErrorMessage(res.error || `Failed to initiate ${provider} authentication.`);
+        setIsSocialLoading(false);
+        setSocialProvider(null);
+      }
+    } catch (err: any) {
+      setAuthErrorMessage(err.message || 'OAuth error occurred.');
+      setIsSocialLoading(false);
+      setSocialProvider(null);
+    }
+  };
 
   // Edit Profile Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -566,7 +600,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               <button
                 type="submit"
-                disabled={isAuthSubmitting}
+                disabled={isAuthSubmitting || isSocialLoading}
                 className="w-full py-3 px-6 rounded-xl bg-white hover:bg-neutral-200 text-black text-xs font-bold uppercase tracking-[0.15em] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 select-none shadow-md mt-2"
               >
                 {isAuthSubmitting ? (
@@ -581,6 +615,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Divider */}
+              <div className="relative my-5 flex items-center justify-center">
+                <div className="border-t border-white/10 w-full" />
+                <span className="bg-[#0a0a0a] px-3 text-[10px] font-mono uppercase tracking-widest text-white/40 absolute">
+                  or continue with
+                </span>
+              </div>
+
+              {/* Social Logins */}
+              <SocialAuthButtons 
+                onSelectProvider={handleSocialAuth}
+                isLoading={isSocialLoading}
+                loadingProvider={socialProvider}
+                disabled={isAuthSubmitting}
+              />
 
               <div className="pt-4 border-t border-white/5 text-center flex items-center justify-between text-xs text-white/40">
                 <span>Need a full screen?</span>
@@ -695,7 +745,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
               <button
                 type="submit"
-                disabled={isAuthSubmitting}
+                disabled={isAuthSubmitting || isSocialLoading}
                 className="w-full py-3 px-6 rounded-xl bg-[#C85A32] hover:bg-[#B34D27] text-white text-xs font-bold uppercase tracking-[0.15em] transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 select-none shadow-md mt-2"
               >
                 {isAuthSubmitting ? (
@@ -710,6 +760,22 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   </>
                 )}
               </button>
+
+              {/* Divider */}
+              <div className="relative my-5 flex items-center justify-center">
+                <div className="border-t border-white/10 w-full" />
+                <span className="bg-[#0a0a0a] px-3 text-[10px] font-mono uppercase tracking-widest text-white/40 absolute">
+                  or sign up with
+                </span>
+              </div>
+
+              {/* Social Registration */}
+              <SocialAuthButtons 
+                onSelectProvider={handleSocialAuth}
+                isLoading={isSocialLoading}
+                loadingProvider={socialProvider}
+                disabled={isAuthSubmitting}
+              />
 
               <div className="pt-4 border-t border-white/5 text-center flex items-center justify-between text-xs text-white/40">
                 <span>Prefer dedicated page?</span>

@@ -113,11 +113,20 @@ export async function signInWithOAuth(provider: 'google' | 'facebook'): Promise<
   }
 
   try {
+    const redirectUrl = typeof window !== 'undefined' ? `${window.location.origin}/` : undefined;
+    
+    // Provide explicit scopes and options for Facebook/Google OAuth
+    const options: { redirectTo?: string; scopes?: string } = {
+      redirectTo: redirectUrl
+    };
+
+    if (provider === 'facebook') {
+      options.scopes = 'email,public_profile';
+    }
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: {
-        redirectTo: window.location.origin
-      }
+      options
     });
     if (error) return { data: null, error };
     return { data: null, error: null };
@@ -240,17 +249,24 @@ export async function ensureUserProfile(
     return { data: null, error: new Error('Supabase client is not initialized.') };
   }
 
+  const rawMeta = (user.user_metadata || {}) as Record<string, any>;
   const fullName = 
-    user.user_metadata?.full_name || 
+    rawMeta.full_name || 
+    rawMeta.name || 
+    [rawMeta.first_name, rawMeta.last_name].filter(Boolean).join(' ') ||
     fallbackMeta?.fullName || 
     user.email?.split('@')[0] || 
     '';
-  const email = user.email || '';
+  const email = user.email || rawMeta.email || '';
   const accountType = 
-    user.user_metadata?.account_type || 
+    rawMeta.account_type || 
     fallbackMeta?.accountType || 
     'lover';
-  const avatarUrl = user.user_metadata?.avatar_url || null;
+  const avatarUrl = 
+    rawMeta.avatar_url || 
+    rawMeta.picture?.data?.url || 
+    (typeof rawMeta.picture === 'string' ? rawMeta.picture : null) || 
+    null;
 
   try {
     // 1. Attempt to fetch existing profile row

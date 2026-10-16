@@ -17,6 +17,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSocialLoading, setIsSocialLoading] = useState(false);
+  const [socialProvider, setSocialProvider] = useState<'google' | 'facebook' | null>(null);
 
   // Email format validation helper
   const isValidEmail = (str: string) => {
@@ -77,15 +78,18 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
     }
 
     setIsSocialLoading(true);
+    setSocialProvider(provider);
     try {
       const res = await signInWithProvider(provider);
       if (!res.success) {
         setErrorMessage(res.error || `Failed to initiate ${provider} sign-in.`);
+        setIsSocialLoading(false);
+        setSocialProvider(null);
       }
     } catch (err: any) {
       setErrorMessage(err.message || 'OAuth error occurred.');
-    } finally {
       setIsSocialLoading(false);
+      setSocialProvider(null);
     }
   };
 
@@ -212,6 +216,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
         <SocialAuthButtons 
           onSelectProvider={handleSocialAuth}
           isLoading={isSocialLoading}
+          loadingProvider={socialProvider}
           disabled={isSubmitting}
         />
 
