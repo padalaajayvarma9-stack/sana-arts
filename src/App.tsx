@@ -82,7 +82,7 @@ const getTabFromPath = (path: string): string => {
 };
 
 function AppContent() {
-  const { user, profile, signOut } = useAuth();
+  const { user, profile, signOut, isLoading: authIsLoading } = useAuth();
   const { 
     targetProfileId, 
     setTargetProfileId, 
@@ -129,6 +129,7 @@ function AppContent() {
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [logoVisible, setLogoVisible] = useState(false);
   const [isFadingOut, setIsFadingOut] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
 
@@ -230,21 +231,34 @@ function AppContent() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [setTargetProfileId]);
 
-  // Initial loading delay with smooth fade-out for asset & WebGL initialization
+  // SA Logo loading screen: fade-in logo immediately, wait for auth, then fade-out
   useEffect(() => {
-    const fadeTimer = setTimeout(() => {
-      setIsFadingOut(true);
-    }, 600);
+    // Trigger logo fade-in on next frame
+    const fadeInTimer = setTimeout(() => setLogoVisible(true), 50);
 
-    const unmountTimer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1100);
+    // Maximum safety timeout — never stuck longer than 8s regardless of auth state
+    const safetyTimer = setTimeout(() => {
+      setIsFadingOut(true);
+      setTimeout(() => setIsLoading(false), 700);
+    }, 8000);
 
     return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(unmountTimer);
+      clearTimeout(fadeInTimer);
+      clearTimeout(safetyTimer);
     };
   }, []);
+
+  // Once Supabase auth finishes initializing, fade-out the loading screen
+  useEffect(() => {
+    if (!authIsLoading && isLoading) {
+      // Small buffer so the logo doesn't flash too briefly on fast connections
+      const bufferTimer = setTimeout(() => {
+        setIsFadingOut(true);
+        setTimeout(() => setIsLoading(false), 700);
+      }, 400);
+      return () => clearTimeout(bufferTimer);
+    }
+  }, [authIsLoading, isLoading]);
 
   // 1. Smoothly tracking native viewport scroll positions
   useEffect(() => {
@@ -327,16 +341,36 @@ function AppContent() {
 
   return (
     <div className="relative min-h-screen w-full bg-[#020202] text-white">
-      {/* Sleek Loading Overlay with Smooth Fade-Out */}
+      {/* SA Logo Loading Screen */}
       {isLoading && (
-        <div 
-          className={`fixed inset-0 z-50 bg-[#020202] flex flex-col items-center justify-center text-white transition-opacity duration-500 ease-out ${
-            isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: '#000000',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'opacity 0.7s ease-in-out',
+            opacity: isFadingOut ? 0 : 1,
+            pointerEvents: isFadingOut ? 'none' : 'all',
+          }}
         >
-          <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin mb-4" />
-          <span className="font-serif text-lg tracking-[0.3em] font-bold animate-pulse">SANA ARTS</span>
-          <span className="text-[10px] font-mono tracking-widest text-white/40 mt-2 uppercase">LOADING EXHIBIT...</span>
+          <img
+            src="/sa-logo.png"
+            alt="Sana Arts"
+            style={{
+              width: 'clamp(120px, 22vw, 260px)',
+              height: 'auto',
+              objectFit: 'contain',
+              userSelect: 'none',
+              pointerEvents: 'none',
+              transition: 'opacity 0.6s ease-out',
+              opacity: logoVisible ? 1 : 0,
+            }}
+          />
         </div>
       )}
 
